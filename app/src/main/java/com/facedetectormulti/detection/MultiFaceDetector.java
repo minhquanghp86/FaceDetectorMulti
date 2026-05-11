@@ -1,14 +1,11 @@
-package com.example.facedetectormulti.detection;
+package com.facedetectormulti.detection;  // ✅ Đúng package
 
 import android.graphics.Rect;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.camera.core.ImageProxy;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
@@ -22,7 +19,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiFaceDetector {
-
+    
     private static final String TAG = "MultiFaceDetector";
     
     private static final long DEFAULT_MIN_FRAME_INTERVAL_MS = 100;
