@@ -10,7 +10,7 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
-import com.facedetectormulti.detection.DetectionResult;
+import com.facedetectormulti.detection.FaceRecognitionResult;
 import com.facedetectormulti.detection.FaceResult;
 
 import java.util.Collections;
@@ -19,7 +19,7 @@ import java.util.List;
 public class FaceOverlayView extends View {
 
     private static final int[] COLORS = {
-        Color.rgb(0, 255, 100),   // Green
+        Color.rgb(0, 255, 100),   // Green - registered
         Color.rgb(0, 200, 255),   // Cyan
         Color.rgb(255, 120, 0),   // Orange
         Color.rgb(255, 60, 200),  // Pink
@@ -33,9 +33,9 @@ public class FaceOverlayView extends View {
     private final Paint centerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint statsPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    private List<FaceResult> faces = Collections.emptyList();
+    private List<? extends FaceResult> faces = Collections.emptyList();
     private long processingTimeMs = 0;
-    private boolean mirrorX = false;  // ✅ Quan trọng: mirror cho front camera
+    private boolean mirrorX = false;
 
     public FaceOverlayView(Context context) {
         super(context);
@@ -65,12 +65,17 @@ public class FaceOverlayView extends View {
         statsPaint.setShadowLayer(4f, 0, 0, Color.BLACK);
     }
 
-    // ✅ Method đúng signature để MainActivity gọi
-    public void update(DetectionResult result) {
-        this.faces = result != null && result.faces != null
-            ? result.faces : Collections.emptyList();
-        this.processingTimeMs = result != null ? result.processingMs : 0;
-        postInvalidate(); // Thread-safe invalidate
+    public void update(List<? extends FaceResult> newFaces, long processingMs) {
+        this.faces = newFaces != null ? newFaces : Collections.emptyList();
+        this.processingTimeMs = processingMs;
+        postInvalidate();
+    }
+
+    // Backward compatible overload
+    public void update(com.facedetectormulti.detection.DetectionResult result) {
+        if (result != null) {
+            update(result.faces, result.processingMs);
+        }
     }
 
     public void clear() {
@@ -78,7 +83,6 @@ public class FaceOverlayView extends View {
         postInvalidate();
     }
 
-    // ✅ Method để set mirror mode (gọi từ MainActivity khi switch camera)
     public void setMirrorX(boolean mirror) {
         this.mirrorX = mirror;
         postInvalidate();
@@ -92,60 +96,76 @@ public class FaceOverlayView extends View {
             drawStats(canvas, 0);
             return;
         }
-
         float vw = getWidth();
         float vh = getHeight();
 
-        for (FaceResult face : faces) {            int color = COLORS[Math.abs(face.trackingId) % COLORS.length];
-            boxPaint.setColor(color);
-            centerPaint.setColor(color);
-
-            // Convert normalized [0,1] sang pixel
-            float left = face.boxNorm.left * vw;
-            float top = face.boxNorm.top * vh;
-            float right = face.boxNorm.right * vw;
-            float bottom = face.boxNorm.bottom * vh;
-
-            // ✅ Mirror handling cho front camera
-            if (mirrorX) {
-                float tmpLeft = left;
-                left = vw - right;
-                right = vw - tmpLeft;
-            }
-
-            RectF rect = new RectF(left, top, right, bottom);
-            canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
-
-            // Vẽ center point + crosshair
-            float cx = (left + right) / 2f;
-            float cy = (top + bottom) / 2f;
-            canvas.drawCircle(cx, cy, 8f, centerPaint);
-            canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
-            canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
-
-            // Vẽ label với thông tin face
-            String label = buildLabel(face);
-            float textW = textPaint.measureText(label);
-            float labelH = 44f;
-            float lx = left;
-            float ly = top - labelH;
-            if (ly < 0) ly = bottom;
-
-            canvas.drawRoundRect(
-                new RectF(lx, ly, lx + textW + 16f, ly + labelH),
-                8f, 8f, labelBgPaint
-            );
-            canvas.drawText(label, lx + 8f, ly + labelH - 10f, textPaint);
+        for (FaceResult face : faces) {
+            drawFace(canvas, face, vw, vh);
         }
 
         drawStats(canvas, faces.size());
     }
 
+    private void drawFace(Canvas canvas, FaceResult face, float vw, float vh) {
+        // Select color based on registered status
+        int colorIndex = Math.abs(face.trackingId) % COLORS.length;
+        boolean isRegistered = face instanceof FaceRecognitionResult && 
+                              ((FaceRecognitionResult) face).isRegistered;
+        
+        boxPaint.setColor(isRegistered ? Color.parseColor("#00FF50") : COLORS[colorIndex]);
+        centerPaint.setColor(boxPaint.getColor());
+
+        // Convert normalized [0,1] to pixels
+        float left = face.boxNorm[0] * vw;
+        float top = face.boxNorm[1] * vh;
+        float right = face.boxNorm[2] * vw;
+        float bottom = face.boxNorm[3] * vh;
+
+        // Mirror for front camera
+        if (mirrorX) {
+            float tmpLeft = left;
+            left = vw - right;
+            right = vw - tmpLeft;
+        }
+
+        RectF rect = new RectF(left, top, right, bottom);
+        canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
+
+        // Draw center point + crosshair
+        float cx = (left + right) / 2f;
+        float cy = (top + bottom) / 2f;
+        canvas.drawCircle(cx, cy, 8f, centerPaint);
+        canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
+        canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
+
+        // Build label
+        String label = buildLabel(face);
+        float textW = textPaint.measureText(label);
+        float labelH = 44f;
+        float lx = left;
+        float ly = top - labelH;
+        if (ly < 0) ly = bottom;
+        // Draw label background (green for registered, gray for unknown)
+        labelBgPaint.setColor(isRegistered ? Color.parseColor("#006622") : Color.parseColor("#444444"));
+        canvas.drawRoundRect(
+            new RectF(lx, ly, lx + textW + 16f, ly + labelH),
+            8f, 8f, labelBgPaint
+        );
+        
+        // Draw text
+        canvas.drawText(label, lx + 8f, ly + labelH - 10f, textPaint);
+    }
+
     private String buildLabel(FaceResult face) {
+        if (face instanceof FaceRecognitionResult) {
+            return ((FaceRecognitionResult) face).getDisplayLabel();
+        }
+        
         StringBuilder sb = new StringBuilder();
         sb.append("#").append(face.trackingId);
-        if (face.smileProbability >= 0) {
-            sb.append(" ").append((int)(face.smileProbability * 100)).append("%");        }
+        if (face.smilingProbability >= 0) {
+            sb.append(" ").append((int)(face.smilingProbability * 100)).append("%");
+        }
         if (Math.abs(face.eulerY) > 20f) {
             sb.append(face.eulerY > 0 ? " ◀" : " ▶");
         }
