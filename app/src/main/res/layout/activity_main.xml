@@ -64,6 +64,21 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Thêm vào activity_main.xml, gần settingsBtn -->
+
+    <ImageButton
+        android:id="@+id/manageFacesBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="128dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Quản lý faces"
+        android:src="@android:drawable/ic_menu_manage"
+        android:tint="#00AAFF"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+
     <ImageButton
         android:id="@+id/registerBtn"
         android:layout_width="48dp"
