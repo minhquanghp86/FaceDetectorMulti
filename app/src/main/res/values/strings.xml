@@ -1,4 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/strings.xml -->
 <resources>
-    <string name="app_name">FaceDetectorMulti</string>
+    <string name="app_name">FaceDetector Multi</string>
+    <string name="switch_camera">Chuyển camera</string>
+    <string name="permission_denied">Quyền camera bị từ chối</string>
+    
+    <!-- Settings -->
+    <string name="pref_category_detection">Phát hiện khuôn mặt</string>
+    <string name="pref_min_face_size">Kích thước face tối thiểu</string>
+    <string name="pref_min_face_size_summary">Tỉ lệ so với khung hình (0.1 - 0.5)</string>
+    <string name="pref_frame_interval">Tần suất xử lý</string>
+    <string name="pref_frame_interval_summary">ms giữa các frame (0 = max speed)</string>
+    
+    <!-- Camera -->
+    <string name="pref_category_camera">Camera</string>
+    <string name="pref_camera_facing">Camera mặc định</string>
+    <string-array name="pref_camera_facing_entries">
+        <item>Trước (Selfie)</item>
+        <item>Sau</item>
+    </string-array>
+    <string-array name="pref_camera_facing_values">
+        <item>front</item>
+        <item>back</item>
+    </string-array>
 </resources>
