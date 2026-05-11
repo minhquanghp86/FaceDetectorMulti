@@ -1,4 +1,4 @@
-package com.example.facedetectormulti.detection;
+package com.facedetectormulti.detection;
 
 import java.util.List;
 
