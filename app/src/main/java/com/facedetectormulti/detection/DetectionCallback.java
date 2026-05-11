@@ -1,4 +1,4 @@
-package com.example.facedetectormulti.detection;
+package com.facedetectormulti.detection;
 
 public interface DetectionCallback {
     void onDetectionResult(DetectionResult result);
