@@ -10,8 +10,9 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
+import com.facedetectormulti.detection.DetectionResult;
 import com.facedetectormulti.detection.FaceResult;
-import com.facedetectormulti.detection.MultiFaceDetector;
+
 import java.util.Collections;
 import java.util.List;
 
@@ -60,7 +61,7 @@ public class FaceOverlayView extends View {
         statsPaint.setShadowLayer(4f, 0, 0, Color.BLACK);
     }
 
-    public void update(MultiFaceDetector.DetectionResult result) {
+    public void update(DetectionResult result) {
         this.faces = result != null && result.faces != null
                 ? result.faces : Collections.emptyList();
         this.processingTimeMs = result != null ? result.processingMs : 0;
