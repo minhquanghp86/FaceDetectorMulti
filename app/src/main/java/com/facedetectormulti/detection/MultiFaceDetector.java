@@ -131,11 +131,13 @@ public class MultiFaceDetector {
             float bottomNorm = (float) bounds.bottom / 1000f;
             
             FaceResult faceResult = new FaceResult(
-                trackingId,
-                leftNorm, topNorm, rightNorm, bottomNorm,
+    trackingId,
+    leftNorm, topNorm, rightNorm, bottomNorm,
+                // Smile probability: có thể null
                 face.getSmilingProbability() != null ? face.getSmilingProbability() : -1f,
-                face.getHeadEulerAngleY() != null ? face.getHeadEulerAngleY() : 0f,
-                currentTime
+                // Euler Y: ML Kit face-detection 16.1.5 trả về float primitive, luôn có giá trị
+                face.getHeadEulerAngleY(), 
+    currentTime
             );
             results.add(faceResult);
         }
