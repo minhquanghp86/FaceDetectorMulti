@@ -115,4 +115,161 @@ public class MultiFaceDetector {
         }
 
         // ✅ FIX: Create final copies for lambda - ALL must be final
-        final boolean doRecognition = config.enable
+        final boolean doRecognition = config.enableRecognition;
+        final FaceDao dao = this.faceDao;
+        final Config cfg = this.config;
+        
+        // ✅ KEY FIX: Single assignment with ternary + final keyword
+        final Bitmap cameraBitmap = doRecognition ? imageProxyToBitmap(imageProxy) : null;
+
+        InputImage image = InputImage.fromMediaImage(
+            imageProxy.getImage(),
+            imageProxy.getImageInfo().getRotationDegrees()
+        );
+
+        mlKitDetector.process(image)
+            .addOnSuccessListener(faces -> {
+                long dt = System.currentTimeMillis() - t0;
+                List<? extends FaceResult> results;
+                
+                if (doRecognition && dao != null && cameraBitmap != null) {
+                    results = recognizeFaces(faces, cameraBitmap, dao, imgW, imgH, cfg);
+                } else {
+                    results = filterFaces(faces, imgW, imgH, cfg);
+                }
+                callback.onResult(results, dt, imgW, imgH);
+            })
+            .addOnFailureListener(e -> {
+                Log.e(TAG, "Detection failed", e);
+                callback.onResult(new ArrayList<>(), System.currentTimeMillis() - t0, imgW, imgH);
+            })
+            .addOnCompleteListener(task -> {
+                // ✅ cameraBitmap is final, safe to use in lambda
+                if (cameraBitmap != null) cameraBitmap.recycle();                imageProxy.close();
+            });
+    }
+
+    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
+        try {
+            android.media.Image image = imageProxy.getImage();
+            if (image == null) return null;
+            int w = imageProxy.getWidth(), h = imageProxy.getHeight();
+            android.media.Image.Plane[] planes = image.getPlanes();
+            if (planes.length == 0) { image.close(); return null; }
+            
+            java.nio.ByteBuffer buffer = planes[0].getBuffer();
+            int pixelStride = planes[0].getPixelStride(), rowStride = planes[0].getRowStride();
+            Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            int[] pixels = new int[w * h];
+            buffer.rewind();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    int offset = y * rowStride + x * pixelStride;
+                    if (offset < buffer.capacity()) {
+                        int gray = buffer.get(offset) & 0xFF;
+                        pixels[y * w + x] = 0xFF000000 | (gray << 16) | (gray << 8) | gray;
+                    }
+                }
+            }
+            bitmap.setPixels(pixels, 0, w, 0, 0, w, h);
+            image.close();
+            return bitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "Bitmap conversion failed", e);
+            return null;
+        }
+    }
+
+    private List<FaceRecognitionResult> recognizeFaces(List<Face> faces, Bitmap cameraFrame,
+                                                       FaceDao dao, int imgW, int imgH, Config cfg) {
+        List<FaceRecognitionResult> results = new ArrayList<>();
+        List<RegisteredFace> registered = dao.getAllFaces();
+        
+        for (Face face : faces) {
+            Rect box = face.getBoundingBox();
+            if (box == null) continue;
+            
+            float area = box.width() * box.height();
+            if (area / (imgW * imgH) < cfg.minBoxAreaRatio) continue;
+            
+            float ratio = (float) box.width() / box.height();
+            if (ratio < 0.4f || ratio > 2.5f) continue;
+            float[] boxNorm = new float[]{
+                (float)box.left/imgW, (float)box.top/imgH,
+                (float)box.right/imgW, (float)box.bottom/imgH
+            };
+            FaceResult temp = new FaceResult(0, boxNorm, -1f, 
+                face.getHeadEulerAngleY(), face.getHeadEulerAngleZ(), -1f, -1f, System.currentTimeMillis());
+            
+            Bitmap faceBmp = FaceEmbeddingExtractor.cropFace(cameraFrame, temp, 20);
+            if (faceBmp == null) continue;
+            
+            float[] embedding = FaceEmbeddingExtractor.extract(faceBmp);
+            float bestScore = 0f;
+            RegisteredFace bestMatch = null;
+            
+            for (RegisteredFace r : registered) {
+                if (r.embedding != null && r.embedding.length == embedding.length) {
+                    float score = RegisteredFace.similarity(embedding, r.embedding);
+                    if (score > bestScore) { bestScore = score; bestMatch = r; }
+                }
+            }
+            
+            boolean matched = bestScore >= RECOGNITION_THRESHOLD;
+            results.add(new FaceRecognitionResult(temp, matched,
+                matched ? bestMatch.name : null, bestScore, matched ? bestMatch.id : -1));
+            
+            if (matched && bestMatch != null) dao.incrementDetectionCount(bestMatch.id);
+            faceBmp.recycle();
+        }
+        return results;
+    }
+
+    private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {
+        List<FaceResult> results = new ArrayList<>();
+        float imgArea = imgW * imgH;
+        
+        for (Face face : faces) {
+            Rect box = face.getBoundingBox();
+            if (box == null) continue;
+            
+            float area = box.width() * box.height();
+            if (area / imgArea < cfg.minBoxAreaRatio) continue;
+            
+            float ratio = (float) box.width() / box.height();
+            if (ratio < 0.4f || ratio > 2.5f) continue;
+            
+            Float smile = face.getSmilingProbability();
+            if (cfg.minConfidence > 0.9f && smile != null && smile < 0.1f) continue;
+            
+            float[] boxNorm = new float[]{
+                Math.max(0f, (float)box.left/imgW), Math.max(0f, (float)box.top/imgH),                Math.min(1f, (float)box.right/imgW), Math.min(1f, (float)box.bottom/imgH)
+            };
+            
+            int trackId = face.getTrackingId() != null ? face.getTrackingId() : nextTempId++;
+            results.add(new FaceResult(trackId, boxNorm,
+                smile != null ? smile : -1f, face.getHeadEulerAngleY(), face.getHeadEulerAngleZ(),
+                face.getLeftEyeOpenProbability() != null ? face.getLeftEyeOpenProbability() : -1f,
+                face.getRightEyeOpenProbability() != null ? face.getRightEyeOpenProbability() : -1f,
+                System.currentTimeMillis()));
+        }
+        return results;
+    }
+
+    // ===== Public API =====
+    public void setFrameIntervalMs(long ms) { config.frameIntervalMs = Math.max(0, ms); }
+    public Config getCurrentConfig() { return config; }
+    
+    public void enableRecognition(boolean enable) {
+        config.enableRecognition = enable;
+        if (enable && context != null && faceDao == null) {
+            faceDao = FaceDatabase.getInstance(context).faceDao();
+        }
+    }
+    
+    public void close() {
+        isShutdown = true;
+        try { mlKitDetector.close(); } catch (Exception e) { Log.e(TAG, "Close error", e); }
+    }
+    public boolean isReady() { return !isShutdown; }
+}
