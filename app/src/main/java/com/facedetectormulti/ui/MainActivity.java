@@ -1,122 +1,260 @@
-package com.facedetectormulti.ui;
+package com.example.facedetectormulti.ui;
 
 import android.Manifest;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.util.Log;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.CameraSelector;
-import androidx.camera.core.ImageAnalysis;
-import androidx.camera.core.Preview;
+import androidx.camera.core.*;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.preference.PreferenceManager;
 
-import com.facedetectormulti.R;
-import com.facedetectormulti.detection.MultiFaceDetector;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.example.facedetectormulti.R;
+import com.example.facedetectormulti.detection.DetectionCallback;
+import com.example.facedetectormulti.detection.DetectionResult;
+import com.example.facedetectormulti.detection.MultiFaceDetector;
 
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements DetectionCallback {
 
-    private static final int PERMISSION_CAMERA = 100;
-
-    private PreviewView      previewView;
-    private FaceOverlayView  faceOverlay;
+    private static final String TAG = "FaceDetectorMulti";
+    private static final int REQUEST_CODE_PERMISSIONS = 100;
+    private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
+    
+    // Camera switching
+    private static final String PREF_CAMERA_FACING = "pref_camera_facing";
+    private int currentLensFacing = CameraSelector.LENS_FACING_FRONT;
+    
+    private PreviewView previewView;
+    private FaceOverlayView overlayView;
+    private TextView hudTextView;
+    private ImageButton switchCameraBtn;
+    
+    private ProcessCameraProvider cameraProvider;
+    private Preview preview;
+    private ImageAnalysis analysis;
     private MultiFaceDetector detector;
-    private ExecutorService  cameraExecutor;
-
-    // Chọn camera: DEFAULT_FRONT_CAMERA hoặc DEFAULT_BACK_CAMERA
-    private static final CameraSelector CAMERA = CameraSelector.DEFAULT_FRONT_CAMERA;
-
+    
+    private final ExecutorService cameraExecutor = Executors.newSingleThreadExecutor();
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        previewView = findViewById(R.id.cameraPreview);
-        faceOverlay = findViewById(R.id.faceOverlay);
-
-        // Front camera cần mirror overlay
-        faceOverlay.setMirrorX(CAMERA == CameraSelector.DEFAULT_FRONT_CAMERA);
-
-        cameraExecutor = Executors.newSingleThreadExecutor();
-
-        detector = new MultiFaceDetector(result ->
-        runOnUiThread(() -> faceOverlay.update(result))
-        );
-
-        if (hasCameraPermission()) {
+        
+        initViews();
+        loadPreferences();
+        
+        if (allPermissionsGranted()) {
             startCamera();
         } else {
-            ActivityCompat.requestPermissions(
-                    this,
-                    new String[]{Manifest.permission.CAMERA},
-                    PERMISSION_CAMERA
-            );
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS);
+        }
+        
+        setupCameraSwitchListener();
+        detector = new MultiFaceDetector(this);
+    }
+
+    private void initViews() {
+        previewView = findViewById(R.id.previewView);
+        overlayView = findViewById(R.id.overlayView);
+        hudTextView = findViewById(R.id.hudTextView);
+        switchCameraBtn = findViewById(R.id.switchCameraBtn);
+        
+        overlayView.setDetectionCallback(this);
+    }
+
+    private void loadPreferences() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        String facing = prefs.getString(PREF_CAMERA_FACING, "front");
+        currentLensFacing = "front".equals(facing) 
+            ? CameraSelector.LENS_FACING_FRONT 
+            : CameraSelector.LENS_FACING_BACK;
+    }
+
+    private void saveCameraPreference() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.edit()
+            .putString(PREF_CAMERA_FACING, 
+                currentLensFacing == CameraSelector.LENS_FACING_FRONT ? "front" : "back")
+            .apply();
+    }
+
+    private boolean allPermissionsGranted() {
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
+                                         @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CODE_PERMISSIONS && allPermissionsGranted()) {
+            startCamera();
+        } else {
+            Toast.makeText(this, "Cần quyền camera để hoạt động", Toast.LENGTH_SHORT).show();
+            finish();
         }
     }
 
     private void startCamera() {
-        ListenableFuture<ProcessCameraProvider> future =
-                ProcessCameraProvider.getInstance(this);
-
-        future.addListener(() -> {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = 
+            ProcessCameraProvider.getInstance(this);
+        
+        cameraProviderFuture.addListener(() -> {
             try {
-                ProcessCameraProvider provider = future.get();
-
-                Preview preview = new Preview.Builder().build();
-                preview.setSurfaceProvider(previewView.getSurfaceProvider());
-
-                ImageAnalysis analysis = new ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build();
-
-                // Mỗi frame mới → đưa vào detector
-                analysis.setAnalyzer(cameraExecutor,
-                        imageProxy -> detector.process(imageProxy));
-
-                provider.unbindAll();
-                provider.bindToLifecycle(this, CAMERA, preview, analysis);
-
-            } catch (ExecutionException | InterruptedException e) {
-                Toast.makeText(this,
-                        "Không khởi động được camera: " + e.getMessage(),
-                        Toast.LENGTH_LONG).show();
+                cameraProvider = cameraProviderFuture.get();
+                bindCameraUseCases();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to start camera", e);
+                runOnUiThread(() -> 
+                    Toast.makeText(this, "Lỗi khởi tạo camera: " + e.getMessage(), 
+                        Toast.LENGTH_SHORT).show());
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
-    private boolean hasCameraPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED;
+    private void bindCameraUseCases() {
+        if (cameraProvider == null) return;
+        
+        // Unbind tất cả use cases cũ trước khi bind mới
+        cameraProvider.unbindAll();
+        
+        // Camera selector với fallback an toàn
+        CameraSelector cameraSelector = new CameraSelector.Builder()
+            .requireLensFacing(currentLensFacing)
+            .build();
+            
+        // Kiểm tra camera có sẵn không
+        if (!cameraProvider.hasCamera(cameraSelector)) {
+            Log.w(TAG, "Camera không khả dụng, thử fallback");
+            currentLensFacing = currentLensFacing == CameraSelector.LENS_FACING_FRONT 
+                ? CameraSelector.LENS_FACING_BACK 
+                : CameraSelector.LENS_FACING_FRONT;
+            cameraSelector = new CameraSelector.Builder()                .requireLensFacing(currentLensFacing)
+                .build();
+        }
+        
+        // Preview configuration
+        preview = new Preview.Builder()
+            .setTargetRotation(previewView.getDisplay().getRotation())
+            .build();
+        preview.setSurfaceProvider(previewView.getSurfaceProvider());
+        
+        // ImageAnalysis configuration với throttle tích hợp
+        analysis = new ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setTargetRotation(previewView.getDisplay().getRotation())
+            .build();
+        
+        // Set analyzer với detector đã được tối ưu
+        analysis.setAnalyzer(cameraExecutor, imageProxy -> {
+            if (detector.isReady()) {
+                detector.process(imageProxy);
+            } else {
+                imageProxy.close();
+            }
+        });
+        
+        try {
+            cameraProvider.bindToLifecycle(this, cameraSelector, preview, analysis);
+            saveCameraPreference();
+            Log.d(TAG, "Camera bound successfully: " + 
+                (currentLensFacing == CameraSelector.LENS_FACING_FRONT ? "Front" : "Back"));
+        } catch (Exception e) {
+            Log.e(TAG, "Bind camera failed", e);
+            runOnUiThread(() -> 
+                Toast.makeText(this, "Lỗi kết nối camera: " + e.getMessage(), 
+                    Toast.LENGTH_SHORT).show());
+        }
+    }
+
+    private void setupCameraSwitchListener() {
+        switchCameraBtn.setOnClickListener(v -> {
+            // Toggle lens facing
+            currentLensFacing = currentLensFacing == CameraSelector.LENS_FACING_FRONT 
+                ? CameraSelector.LENS_FACING_BACK 
+                : CameraSelector.LENS_FACING_FRONT;
+            
+            // Update UI feedback
+            switchCameraBtn.setEnabled(false);
+            switchCameraBtn.setAlpha(0.5f);
+            
+            // Rebind camera với delay nhỏ để tránh race condition            cameraExecutor.execute(() -> {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ignored) {}
+                
+                runOnUiThread(() -> {
+                    bindCameraUseCases();
+                    switchCameraBtn.setEnabled(true);
+                    switchCameraBtn.setAlpha(1.0f);
+                });
+            });
+        });
+    }
+
+    // ===== Lifecycle Management =====
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Tạm dừng analysis để tiết kiệm tài nguyên khi app background
+        if (analysis != null) {
+            analysis.clearAnalyzer();
+        }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] results) {
-        super.onRequestPermissionsResult(requestCode, permissions, results);
-        if (requestCode == PERMISSION_CAMERA
-                && results.length > 0
-                && results[0] == PackageManager.PERMISSION_GRANTED) {
-            startCamera();
-        } else {
-            Toast.makeText(this, "Cần cấp quyền Camera", Toast.LENGTH_LONG).show();
-            finish();
+    protected void onResume() {
+        super.onResume();
+        // Resume analyzer nếu camera đã sẵn sàng
+        if (cameraProvider != null && analysis != null && detector.isReady()) {
+            analysis.setAnalyzer(cameraExecutor, imageProxy -> detector.process(imageProxy));
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (detector != null) detector.close();
         cameraExecutor.shutdown();
+        if (detector != null) {
+            detector.shutdown();
+        }
+    }
+
+    // ===== DetectionCallback Implementation =====
+    @Override
+    public void onDetectionResult(DetectionResult result) {
+        runOnUiThread(() -> {
+            overlayView.setResults(result.getFaces());
+            overlayView.invalidate();
+            
+            // Update HUD với thông tin performance            long fps = result.getFps();
+            int faceCount = result.getFaces().size();
+            hudTextView.setText(String.format("Faces: %d | FPS: %d | Time: %dms", 
+                faceCount, fps, result.getProcessingTimeMs()));
+        });
+    }
+
+    @Override
+    public void onDetectionError(String error) {
+        runOnUiThread(() -> {
+            Log.e(TAG, "Detection error: " + error);
+            Toast.makeText(this, "Lỗi phát hiện: " + error, Toast.LENGTH_SHORT).show();
+        });
     }
 }
