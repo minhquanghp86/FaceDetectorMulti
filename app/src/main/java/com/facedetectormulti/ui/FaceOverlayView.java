@@ -1,4 +1,3 @@
-
 package com.facedetectormulti.ui;
 
 import android.content.Context;
@@ -11,36 +10,20 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
-// ✅ Thêm import này
-import com.facedetectormulti.detection.MultiFaceDetector;
+import com.facedetectormulti.detection.FaceResult;
 
 import java.util.Collections;
 import java.util.List;
-/**
- * FaceOverlayView
- * ===============
- * Custom View trong suốt đặt chồng lên camera preview.
- * Nhận DetectionResult, vẽ bounding box + label cho từng khuôn mặt.
- *
- * Layout XML:
- *   <com.minhquanghp86.faceservotracker.detection.FaceOverlayView
- *       android:id="@+id/faceOverlay"
- *       android:layout_width="match_parent"
- *       android:layout_height="match_parent" />
- *
- * Trong Activity:
- *   overlay.update(result);   // gọi từ UI thread
- */
+
 public class FaceOverlayView extends View {
 
-    // Bảng màu cho từng khuôn mặt (xoay vòng)
     private static final int[] COLORS = {
-        Color.rgb(0,   255, 100),   // xanh lá
-        Color.rgb(0,   200, 255),   // xanh cyan
-        Color.rgb(255, 120,   0),   // cam
-        Color.rgb(255,  60, 200),   // hồng
-        Color.rgb(200, 255,   0),   // vàng-lục
-        Color.rgb(180, 100, 255),   // tím
+        Color.rgb(0,   255, 100),
+        Color.rgb(0,   200, 255),
+        Color.rgb(255, 120,   0),
+        Color.rgb(255,  60, 200),
+        Color.rgb(200, 255,   0),
+        Color.rgb(180, 100, 255),
     };
 
     private final Paint boxPaint     = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -49,10 +32,8 @@ public class FaceOverlayView extends View {
     private final Paint centerPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint statsPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-    private List<MultiFaceDetector.FaceData> faces = Collections.emptyList();
+    private List<FaceResult> faces = Collections.emptyList();
     private long processingTimeMs = 0;
-
-    // Có mirror không (front camera thường mirror)
     private boolean mirrorX = false;
 
     public FaceOverlayView(Context context) {
@@ -68,15 +49,11 @@ public class FaceOverlayView extends View {
     private void init() {
         boxPaint.setStyle(Paint.Style.STROKE);
         boxPaint.setStrokeWidth(3f);
-
         labelBgPaint.setStyle(Paint.Style.FILL);
-
         textPaint.setTextSize(32f);
         textPaint.setColor(Color.BLACK);
         textPaint.setFakeBoldText(true);
-
         centerPaint.setStyle(Paint.Style.FILL);
-
         statsPaint.setTextSize(36f);
         statsPaint.setColor(Color.WHITE);
         statsPaint.setFakeBoldText(true);
@@ -84,13 +61,12 @@ public class FaceOverlayView extends View {
     }
 
     /** Gọi từ UI thread khi có kết quả mới */
-    public void update(MultiFaceDetector.DetectionResult result) {
-        this.faces = result.faces;
-        this.processingTimeMs = result.processingTimeMs;
-        invalidate();   // trigger onDraw
+    public void update(List<FaceResult> results, long processingMs) {
+        this.faces = results != null ? results : Collections.emptyList();
+        this.processingTimeMs = processingMs;
+        invalidate();
     }
 
-    /** Xoá overlay (khi không còn khuôn mặt nào) */
     public void clear() {
         this.faces = Collections.emptyList();
         invalidate();
@@ -104,7 +80,7 @@ public class FaceOverlayView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (faces == null || faces.isEmpty()) {
+        if (faces.isEmpty()) {
             drawStats(canvas, 0);
             return;
         }
@@ -112,19 +88,17 @@ public class FaceOverlayView extends View {
         float vw = getWidth();
         float vh = getHeight();
 
-        for (MultiFaceDetector.FaceData face : faces) {
-            int color = COLORS[face.id % COLORS.length];
+        for (FaceResult face : faces) {
+            int color = COLORS[Math.abs(face.trackingId) % COLORS.length];
             boxPaint.setColor(color);
             centerPaint.setColor(color);
             labelBgPaint.setColor(color);
 
-            // Tọa độ thực trên view (đã scale từ normalize 0.0–1.0)
-            float left   = face.boundingBox.left   * vw;
-            float top    = face.boundingBox.top    * vh;
-            float right  = face.boundingBox.right  * vw;
-            float bottom = face.boundingBox.bottom * vh;
+            float left   = face.boxNorm.left   * vw;
+            float top    = face.boxNorm.top    * vh;
+            float right  = face.boxNorm.right  * vw;
+            float bottom = face.boxNorm.bottom * vh;
 
-            // Mirror nếu front camera
             if (mirrorX) {
                 float tmp = left;
                 left  = vw - right;
@@ -134,16 +108,14 @@ public class FaceOverlayView extends View {
             RectF rect = new RectF(left, top, right, bottom);
             canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
 
-            // Điểm center
             float cx = (left + right) / 2f;
             float cy = (top + bottom) / 2f;
             canvas.drawCircle(cx, cy, 8f, centerPaint);
             canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
             canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
 
-            // Label: "#0  😊 90%"
             String label = buildLabel(face);
-            float textW = textPaint.measureText(label);
+            float textW  = textPaint.measureText(label);
             float labelH = 44f;
             float lx = left;
             float ly = top - labelH;
@@ -159,14 +131,14 @@ public class FaceOverlayView extends View {
         drawStats(canvas, faces.size());
     }
 
-    private String buildLabel(MultiFaceDetector.FaceData face) {
+    private String buildLabel(FaceResult face) {
         StringBuilder sb = new StringBuilder();
-        sb.append("#").append(face.id);
-        if (face.smilingProb >= 0) {
-            sb.append("  ").append((int)(face.smilingProb * 100)).append("%");
+        sb.append("#").append(face.trackingId);
+        if (face.smileProbability >= 0) {
+            sb.append("  ").append((int)(face.smileProbability * 100)).append("%");
         }
-        if (Math.abs(face.headEulerY) > 20f) {
-            sb.append(face.headEulerY > 0 ? " ◀" : " ▶");
+        if (Math.abs(face.eulerY) > 20f) {
+            sb.append(face.eulerY > 0 ? " ◀" : " ▶");
         }
         return sb.toString();
     }
