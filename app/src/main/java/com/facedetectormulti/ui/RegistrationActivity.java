@@ -29,10 +29,14 @@ public class RegistrationActivity extends AppCompatActivity {
         
         initViews();
         
-        // Nhận face bitmap từ Intent
+        // Nhận face bitmap từ Intent (nếu có)
         capturedFace = getIntent().getParcelableExtra("face_bitmap");
         if (capturedFace != null) {
             ivPreview.setImageBitmap(capturedFace);
+        } else {
+            // Placeholder: hiển thị icon default
+            ivPreview.setImageResource(android.R.drawable.ic_menu_gallery);
+            Toast.makeText(this, "⚠ Chưa có ảnh face, vui lòng chọn từ camera", Toast.LENGTH_SHORT).show();
         }
         
         btnSave.setOnClickListener(v -> saveRegistration());
@@ -43,41 +47,67 @@ public class RegistrationActivity extends AppCompatActivity {
         ivPreview = findViewById(R.id.ivPreview);
         etName = findViewById(R.id.etName);
         etDescription = findViewById(R.id.etDescription);
-        btnSave = findViewById(R.id.btnSave);
-        btnCancel = findViewById(R.id.btnCancel);
+        btnSave = findViewById(R.id.btnSave);        btnCancel = findViewById(R.id.btnCancel);
     }
     
     private void saveRegistration() {
         String name = etName.getText().toString().trim();
         if (name.isEmpty()) {
             Toast.makeText(this, "Vui lòng nhập tên", Toast.LENGTH_SHORT).show();
+            etName.requestFocus();
             return;
         }
         
         if (capturedFace == null) {
-            Toast.makeText(this, "Không có ảnh mặt", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Không có ảnh mặt để đăng ký", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // Extract embedding
-        float[] embedding = FaceEmbeddingExtractor.extract(capturedFace);
-        String avatarBase64 = FaceEmbeddingExtractor.toBase64(capturedFace);
+        // Show loading
+        btnSave.setEnabled(false);
+        btnSave.setText("Đang lưu...");
         
-        // Save to database (async)
+        // Extract embedding + save to database (async)
         new Thread(() -> {
-            RegisteredFace newFace = new RegisteredFace(name, embedding, avatarBase64);
-            newFace.description = etDescription.getText().toString().trim();
-            long id = FaceDatabase.getInstance(this).faceDao().insert(newFace);
-            
-            runOnUiThread(() -> {
-                if (id > 0) {
-                    Toast.makeText(this, "✓ Đã đăng ký: " + name, Toast.LENGTH_SHORT).show();
-                    setResult(RESULT_OK);
-                    finish();
-                } else {
-                    Toast.makeText(this, "❌ Lỗi lưu database", Toast.LENGTH_SHORT).show();
-                }
-            });
+            try {
+                // 1. Extract embedding
+                float[] embedding = FaceEmbeddingExtractor.extract(capturedFace);
+                
+                // 2. Convert avatar to base64
+                String avatarBase64 = FaceEmbeddingExtractor.toBase64(capturedFace);
+                
+                // 3. Create and insert RegisteredFace
+                RegisteredFace newFace = new RegisteredFace(name, embedding, avatarBase64);
+                newFace.description = etDescription.getText().toString().trim();
+                
+                long id = FaceDatabase.getInstance(this).faceDao().insert(newFace);
+                
+                // 4. Return result
+                runOnUiThread(() -> {
+                    if (id > 0) {
+                        Toast.makeText(this, "✓ Đã đăng ký: " + name, Toast.LENGTH_SHORT).show();
+                        setResult(RESULT_OK);
+                        finish();
+                    } else {
+                        Toast.makeText(this, "❌ Lỗi lưu database", Toast.LENGTH_SHORT).show();
+                        btnSave.setEnabled(true);
+                        btnSave.setText("💾 Lưu");
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();                    btnSave.setEnabled(true);
+                    btnSave.setText("💾 Lưu");
+                });
+            }
         }).start();
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (capturedFace != null && !capturedFace.isRecycled()) {
+            capturedFace.recycle();
+        }
     }
 }
