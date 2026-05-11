@@ -6,12 +6,12 @@ package com.facedetectormulti.detection;
 public class FaceRecognitionResult extends FaceResult {
     public final boolean isRegistered;
     public final String personName;
-    public final float confidence;  // 0.0 ~ 1.0
+    public final float confidence;
     public final int registeredFaceId;
 
-    public FaceRecognitionResult(FaceResult base, boolean isRegistered, 
+    public FaceRecognitionResult(FaceResult base, boolean isRegistered,
                                String personName, float confidence, int registeredFaceId) {
-        // ✅ Call parent constructor with all required params
+        // ✅ Call parent with all required params using base.boxNorm (float[])
         super(base.trackingId, base.boxNorm, base.smilingProbability,
               base.eulerY, 0f, -1f, -1f, base.timestamp);
         this.isRegistered = isRegistered;
@@ -19,12 +19,11 @@ public class FaceRecognitionResult extends FaceResult {
         this.confidence = confidence;
         this.registeredFaceId = registeredFaceId;
     }
-    
+
     public String getDisplayLabel() {
-        if (isRegistered) {
+        if (isRegistered && personName != null) {
             return String.format("✅ %s (%.0f%%)", personName, confidence * 100);
-        } else {
-            return "❓ Unknown";
         }
+        return "❓ Unknown";
     }
 }
