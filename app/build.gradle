@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace 'com.example.facedetectormulti'  // ✅ Quan trọng: đúng package
+    namespace 'com.facedetectormulti'  // ✅ Quan trọng: đúng package
     compileSdk 34
     
     // Suppress warning cho compileSdk 34
@@ -55,6 +55,12 @@ dependencies {
     implementation 'com.google.guava:guava:31.1-android'
     
     // ===== UI =====
+    // ✅ Guava cho ListenableFuture (CameraX cần)
+    implementation 'com.google.guava:guava:31.1-android'
+    
+    // ✅ Preferences
+    implementation "androidx.preference:preference-ktx:1.2.1"
+
     implementation 'com.google.android.material:material:1.11.0'
     
     // ===== Test dependencies (CHỈ cho src/test/java) =====
