@@ -6,8 +6,6 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -33,10 +31,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-/**
- * Main activity for FaceDetector Multi app.
- * Handles camera preview, face detection, UI overlay, and settings.
- */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "FaceDetectorMulti";
@@ -47,12 +41,13 @@ public class MainActivity extends AppCompatActivity {
     private PreviewView previewView;
     private FaceOverlayView faceOverlay;
     private TextView hudTextView;
-    private ImageButton switchCameraBtn;    private TextView permissionDeniedText;
+    private ImageButton switchCameraBtn;
+    private ImageButton settingsBtn; // ✅ Thêm
+    private TextView permissionDeniedText;
 
     // Camera & detection
     private MultiFaceDetector detector;
-    private ExecutorService cameraExecutor;
-    private ProcessCameraProvider cameraProvider;
+    private ExecutorService cameraExecutor;    private ProcessCameraProvider cameraProvider;
     private CameraSelector currentCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
     
     // Settings
@@ -63,7 +58,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize preferences first
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
         initViews();
@@ -84,9 +78,9 @@ public class MainActivity extends AppCompatActivity {
         faceOverlay = findViewById(R.id.faceOverlay);
         hudTextView = findViewById(R.id.hudTextView);
         switchCameraBtn = findViewById(R.id.switchCameraBtn);
+        settingsBtn = findViewById(R.id.settingsBtn); // ✅ Thêm
         permissionDeniedText = findViewById(R.id.permissionDeniedText);
 
-        // Mirror overlay cho front camera
         updateOverlayMirror();
     }
 
@@ -96,15 +90,13 @@ public class MainActivity extends AppCompatActivity {
             currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
                 ? CameraSelector.DEFAULT_BACK_CAMERA
                 : CameraSelector.DEFAULT_FRONT_CAMERA;
-                        // UI feedback
+            
             switchCameraBtn.setEnabled(false);
             switchCameraBtn.setAlpha(0.5f);
             
-            // Rebind camera với delay nhỏ
             cameraExecutor.execute(() -> {
                 try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-                
-                runOnUiThread(() -> {
+                                runOnUiThread(() -> {
                     updateOverlayMirror();
                     startCamera();
                     switchCameraBtn.setEnabled(true);
@@ -113,7 +105,10 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-        // HUD long-click → quick settings
+        // ✅ Settings button click handler
+        settingsBtn.setOnClickListener(v -> openSettings());
+
+        // HUD long-click → quick settings (backup)
         hudTextView.setOnLongClickListener(v -> {
             openSettings();
             return true;
@@ -130,7 +125,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initDetector() {
-        // ✅ Dùng callback lambda, config mặc định sẽ được áp dụng trong applySettingsFromPrefs()
         detector = new MultiFaceDetector(result ->
             runOnUiThread(() -> {
                 faceOverlay.update(result);
@@ -146,12 +140,12 @@ public class MainActivity extends AppCompatActivity {
         long fps = time > 0 ? 1000 / time : 0;
         hudTextView.setText(String.format("Faces: %d | FPS: %d | Time: %dms", count, fps, time));
     }
+
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
             ProcessCameraProvider.getInstance(this);
 
-        cameraProviderFuture.addListener(() -> {
-            try {
+        cameraProviderFuture.addListener(() -> {            try {
                 cameraProvider = cameraProviderFuture.get();
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
@@ -167,16 +161,13 @@ public class MainActivity extends AppCompatActivity {
     private void bindCameraUseCases() {
         if (cameraProvider == null) return;
 
-        // Unbind all trước khi bind mới
         cameraProvider.unbindAll();
 
-        // Preview
         Preview preview = new Preview.Builder()
             .setTargetRotation(previewView.getDisplay().getRotation())
             .build();
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
-        // ImageAnalysis cho face detection
         ImageAnalysis analysis = new ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setTargetRotation(previewView.getDisplay().getRotation())
@@ -190,11 +181,11 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Bind với lifecycle
         try {
             cameraProvider.bindToLifecycle(this, currentCamera, preview, analysis);
             Log.d(TAG, "Camera bound: " + 
-                (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA ? "Front" : "Back"));        } catch (Exception e) {
+                (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA ? "Front" : "Back"));
+        } catch (Exception e) {
             Log.e(TAG, "Bind camera failed", e);
             runOnUiThread(() -> 
                 Toast.makeText(this, 
@@ -203,24 +194,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // ===== Settings Integration =====
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_settings) {
-            openSettings();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
-
-    private void openSettings() {
+    // ===== Settings =====    private void openSettings() {
         Intent intent = new Intent(this, SettingsActivity.class);
         startActivityForResult(intent, REQUEST_CODE_SETTINGS);
     }
@@ -229,29 +203,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_SETTINGS && resultCode == RESULT_OK) {
-            // Settings changed → apply if needed
             applySettingsFromPrefs();
         }
     }
 
-    /**
-     * Load settings from SharedPreferences and apply to detector.
-     * Called on startup and after returning from SettingsActivity.
-     */
     private void applySettingsFromPrefs() {
-        // 1️⃣ Update frame throttle (can apply immediately)
         int frameInterval = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 100);
         if (detector != null) {
             detector.setFrameIntervalMs(frameInterval);
         }
-        // 2️⃣ Check if detector config needs update
+
         float minFaceSize = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.12f);
         float minConfidence = prefs.getFloat(SettingsActivity.KEY_MIN_CONFIDENCE, 0.5f);
         boolean accurateMode = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
         
         MultiFaceDetector.Config currentConfig = detector != null ? detector.getCurrentConfig() : null;
         
-        // Re-init detector if config changed significantly
         boolean needReinit = currentConfig == null || 
             Math.abs(currentConfig.minFaceSize - minFaceSize) > 0.01f ||
             Math.abs(currentConfig.minConfidence - minConfidence) > 0.05f ||
@@ -259,11 +226,8 @@ public class MainActivity extends AppCompatActivity {
         
         if (needReinit) {
             Log.d(TAG, "Config changed, re-initializing detector...");
-            
-            // Close old detector
             if (detector != null) detector.close();
             
-            // ✅ Create new config using factory method + fluent setters
             MultiFaceDetector.Config newConfig = MultiFaceDetector.Config.createDefault()
                 .setMinFaceSize(minFaceSize)
                 .setMinConfidence(minConfidence)
@@ -272,36 +236,27 @@ public class MainActivity extends AppCompatActivity {
                 .setAspectRatioTolerance(0.6f)
                 .setFrameIntervalMs(frameInterval);
             
-            // Create new detector with new config
             detector = new MultiFaceDetector(result ->
                 runOnUiThread(() -> {
                     faceOverlay.update(result);
                     updateHud(result);
                 }), newConfig);
             
-            // Re-bind camera to apply new config
             if (cameraProvider != null) {
-                cameraProvider.unbindAll();
-                startCamera();
+                cameraProvider.unbindAll();                startCamera();
             }
         }
-
-        // 3️⃣ Resolution: needs camera restart (user notified in Settings UI)
-        // Optional: auto-restart if user wants (can add confirmation dialog here)
     }
 
     // ===== Permissions =====
-
-    private boolean hasCameraPermission() {        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestCameraPermission() {
         ActivityCompat.requestPermissions(
-            this,
-            new String[]{Manifest.permission.CAMERA},
-            PERMISSION_CAMERA
-        );
+            this, new String[]{Manifest.permission.CAMERA}, PERMISSION_CAMERA);
     }
 
     @Override
@@ -321,11 +276,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // ===== Lifecycle =====
-
     @Override
     protected void onResume() {
         super.onResume();
-        // Resume camera nếu đã có permission
         if (hasCameraPermission() && cameraProvider != null) {
             startCamera();
         }
@@ -334,14 +287,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        // Unbind camera khi pause để tiết kiệm tài nguyên
         if (cameraProvider != null) {
             cameraProvider.unbindAll();
         }
     }
 
     @Override
-    protected void onDestroy() {        super.onDestroy();
+    protected void onDestroy() {
+        super.onDestroy();
         if (detector != null) detector.close();
         if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
             cameraExecutor.shutdown();
