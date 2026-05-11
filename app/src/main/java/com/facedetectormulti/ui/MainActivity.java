@@ -47,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton switchCameraBtn;
     private ImageButton settingsBtn;
     private ImageButton registerBtn;
-    private ImageButton manageFacesBtn;    private TextView permissionDeniedText;
+    private ImageButton manageFacesBtn;  // ✅ Nullable - an toàn nếu layout chưa có    private TextView permissionDeniedText;
 
     // Core Objects
     private MultiFaceDetector detector;
@@ -86,17 +86,20 @@ public class MainActivity extends AppCompatActivity {
         switchCameraBtn = findViewById(R.id.switchCameraBtn);
         settingsBtn = findViewById(R.id.settingsBtn);
         registerBtn = findViewById(R.id.registerBtn);
+        
+        // ✅ Nullable: return null nếu ID không có trong layout
         manageFacesBtn = findViewById(R.id.manageFacesBtn);
+        
         permissionDeniedText = findViewById(R.id.permissionDeniedText);
         updateOverlayMirror();
     }
 
     private void setupClickListeners() {
         // 1. Switch Camera
-        switchCameraBtn.setOnClickListener(v -> {
-            currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
+        switchCameraBtn.setOnClickListener(v -> {            currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
                 ? CameraSelector.DEFAULT_BACK_CAMERA
-                : CameraSelector.DEFAULT_FRONT_CAMERA;            
+                : CameraSelector.DEFAULT_FRONT_CAMERA;
+            
             switchCameraBtn.setEnabled(false);
             switchCameraBtn.setAlpha(0.5f);
             
@@ -143,15 +146,15 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "⚠ Không tìm thấy khuôn mặt hợp lệ", Toast.LENGTH_SHORT).show();
             }
         });
-
-        // 4. Manage Faces
-        if (manageFacesBtn != null) {            manageFacesBtn.setOnClickListener(v -> {
+        // 4. Manage Faces - ✅ Nullable check
+        if (manageFacesBtn != null) {
+            manageFacesBtn.setOnClickListener(v -> {
                 Intent intent = new Intent(MainActivity.this, ManageFacesActivity.class);
                 startActivity(intent);
             });
         }
 
-        // 5. HUD Long-Click → Quick Settings
+        // 5. HUD Long-Click → Quick Settings (backup)
         hudTextView.setOnLongClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivityForResult(intent, REQUEST_CODE_SETTINGS);
@@ -168,16 +171,16 @@ public class MainActivity extends AppCompatActivity {
         cameraExecutor = Executors.newSingleThreadExecutor();
     }
 
+    // ✅ Uses 3-param constructor: (callback, context, config)
     private void initDetector() {
-        // ✅ 3-param constructor: (callback, context, config)
         detector = new MultiFaceDetector(
             (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
                 lastDetectedFaces = new ArrayList<>(results);
                 faceOverlay.update(results, processingMs);
                 updateHud(results.size(), processingMs);
             }),
-            this,
-            MultiFaceDetector.Config.createDefault()
+            this,  // Context for Room database
+            MultiFaceDetector.Config.createDefault()  // Initial config
         );
     }
 
@@ -191,10 +194,10 @@ public class MainActivity extends AppCompatActivity {
         future.addListener(() -> {
             try {
                 cameraProvider = future.get();
-                bindCameraUseCases();
-            } catch (ExecutionException | InterruptedException e) {
+                bindCameraUseCases();            } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Camera start failed", e);
-                runOnUiThread(() ->                     Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> 
+                    Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -240,10 +243,10 @@ public class MainActivity extends AppCompatActivity {
         boolean accurate = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
         boolean enableRec = prefs.getBoolean("pref_enable_recognition", false);
 
-        MultiFaceDetector.Config current = detector != null ? detector.getCurrentConfig() : null;
-        boolean needReinit = current == null ||
+        MultiFaceDetector.Config current = detector != null ? detector.getCurrentConfig() : null;        boolean needReinit = current == null ||
             Math.abs(current.minFaceSize - minFaceSize) > 0.01f ||
-            Math.abs(current.minConfidence - minConf) > 0.05f ||            current.accurateMode != accurate ||
+            Math.abs(current.minConfidence - minConf) > 0.05f ||
+            current.accurateMode != accurate ||
             current.enableRecognition != enableRec;
 
         if (needReinit) {
@@ -289,10 +292,10 @@ public class MainActivity extends AppCompatActivity {
                 detector.close();
                 initDetector();
             }
-        }
-    }
+        }    }
 
-    private boolean hasCameraPermission() {        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
             == PackageManager.PERMISSION_GRANTED;
     }
 
@@ -338,7 +341,6 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (detector != null) detector.close();
         if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
-            cameraExecutor.shutdown();
-        }
+            cameraExecutor.shutdown();        }
     }
 }
