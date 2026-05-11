@@ -19,12 +19,12 @@ import java.util.List;
 public class FaceOverlayView extends View {
 
     private static final int[] COLORS = {
-        Color.rgb(0, 255, 100),   // Green - registered
-        Color.rgb(0, 200, 255),   // Cyan
-        Color.rgb(255, 120, 0),   // Orange
-        Color.rgb(255, 60, 200),  // Pink
-        Color.rgb(200, 255, 0),   // Lime
-        Color.rgb(180, 100, 255), // Purple
+        Color.rgb(0, 255, 100),
+        Color.rgb(0, 200, 255),
+        Color.rgb(255, 120, 0),
+        Color.rgb(255, 60, 200),
+        Color.rgb(200, 255, 0),
+        Color.rgb(180, 100, 255),
     };
 
     private final Paint boxPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -49,16 +49,12 @@ public class FaceOverlayView extends View {
 
     private void init() {        boxPaint.setStyle(Paint.Style.STROKE);
         boxPaint.setStrokeWidth(3f);
-        
         labelBgPaint.setStyle(Paint.Style.FILL);
         labelBgPaint.setColor(Color.argb(200, 0, 0, 0));
-        
         textPaint.setTextSize(32f);
         textPaint.setColor(Color.WHITE);
         textPaint.setFakeBoldText(true);
-        
         centerPaint.setStyle(Paint.Style.FILL);
-        
         statsPaint.setTextSize(36f);
         statsPaint.setColor(Color.WHITE);
         statsPaint.setFakeBoldText(true);
@@ -71,7 +67,7 @@ public class FaceOverlayView extends View {
         postInvalidate();
     }
 
-    // Backward compatible overload
+    // Backward compatible
     public void update(com.facedetectormulti.detection.DetectionResult result) {
         if (result != null) {
             update(result.faces, result.processingMs);
@@ -91,23 +87,20 @@ public class FaceOverlayView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        
         if (faces.isEmpty()) {
             drawStats(canvas, 0);
             return;
         }
+
         float vw = getWidth();
         float vh = getHeight();
 
         for (FaceResult face : faces) {
-            drawFace(canvas, face, vw, vh);
-        }
-
+            drawFace(canvas, face, vw, vh);        }
         drawStats(canvas, faces.size());
     }
 
     private void drawFace(Canvas canvas, FaceResult face, float vw, float vh) {
-        // Select color based on registered status
         int colorIndex = Math.abs(face.trackingId) % COLORS.length;
         boolean isRegistered = face instanceof FaceRecognitionResult && 
                               ((FaceRecognitionResult) face).isRegistered;
@@ -115,7 +108,7 @@ public class FaceOverlayView extends View {
         boxPaint.setColor(isRegistered ? Color.parseColor("#00FF50") : COLORS[colorIndex]);
         centerPaint.setColor(boxPaint.getColor());
 
-        // Convert normalized [0,1] to pixels
+        // ✅ Access boxNorm as float array: [left, top, right, bottom]
         float left = face.boxNorm[0] * vw;
         float top = face.boxNorm[1] * vh;
         float right = face.boxNorm[2] * vw;
@@ -131,38 +124,32 @@ public class FaceOverlayView extends View {
         RectF rect = new RectF(left, top, right, bottom);
         canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
 
-        // Draw center point + crosshair
+        // Center point + crosshair
         float cx = (left + right) / 2f;
         float cy = (top + bottom) / 2f;
         canvas.drawCircle(cx, cy, 8f, centerPaint);
         canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
         canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
 
-        // Build label
+        // Label
         String label = buildLabel(face);
         float textW = textPaint.measureText(label);
         float labelH = 44f;
         float lx = left;
         float ly = top - labelH;
         if (ly < 0) ly = bottom;
-        // Draw label background (green for registered, gray for unknown)
+
         labelBgPaint.setColor(isRegistered ? Color.parseColor("#006622") : Color.parseColor("#444444"));
-        canvas.drawRoundRect(
-            new RectF(lx, ly, lx + textW + 16f, ly + labelH),
-            8f, 8f, labelBgPaint
-        );
-        
-        // Draw text
+        canvas.drawRoundRect(new RectF(lx, ly, lx + textW + 16f, ly + labelH), 8f, 8f, labelBgPaint);
         canvas.drawText(label, lx + 8f, ly + labelH - 10f, textPaint);
     }
 
     private String buildLabel(FaceResult face) {
-        if (face instanceof FaceRecognitionResult) {
-            return ((FaceRecognitionResult) face).getDisplayLabel();
+        if (face instanceof FaceRecognitionResult) {            return ((FaceRecognitionResult) face).getDisplayLabel();
         }
-        
         StringBuilder sb = new StringBuilder();
         sb.append("#").append(face.trackingId);
+        // ✅ Check smilingProbability exists and is valid
         if (face.smilingProbability >= 0) {
             sb.append(" ").append((int)(face.smilingProbability * 100)).append("%");
         }
