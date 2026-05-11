@@ -3,17 +3,18 @@ package com.facedetectormulti.detection;
 import java.util.List;
 
 public class DetectionResult {
-    private final List<FaceResult> faces;
-    private final long processingTimeMs;
-    private final long fps;
-    
-    public DetectionResult(List<FaceResult> faces, long processingTimeMs, long fps) {
+    public final List<FaceResult> faces;
+    public final long processingMs;
+    public final int imageWidth;
+    public final int imageHeight;
+
+    public DetectionResult(List<FaceResult> faces, long processingMs, int imageWidth, int imageHeight) {
         this.faces = faces;
-        this.processingTimeMs = processingTimeMs;
-        this.fps = fps;
+        this.processingMs = processingMs;
+        this.imageWidth = imageWidth;
+        this.imageHeight = imageHeight;
     }
-    
-    public List<FaceResult> getFaces() { return faces; }
-    public long getProcessingTimeMs() { return processingTimeMs; }
-    public long getFps() { return fps; }
+
+    public boolean isEmpty() { return faces == null || faces.isEmpty(); }
+    public int getFaceCount() { return faces != null ? faces.size() : 0; }
 }
