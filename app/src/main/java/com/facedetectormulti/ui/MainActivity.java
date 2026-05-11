@@ -193,8 +193,13 @@ public class MainActivity extends AppCompatActivity {
             if (detector != null) detector.close();
             
             MultiFaceDetector.Config newCfg = MultiFaceDetector.Config.createDefault()
-                .setMinFaceSize(minFaceSize).setMinConfidence(minConf)
-                .setAccurateMode(accurate).setEnableRecognition(enableRec)  // ✅ Added setter                .setMinBoxAreaRatio(0.003f).setFrameIntervalMs(frameInterval);
+                .setMinFaceSize(minFaceSize)
+                .setMinConfidence(minConf)
+                .setAccurateMode(accurate)
+                .setEnableRecognition(enableRec)
+                // ✅ Added setter
+                .setMinBoxAreaRatio(0.003f)
+                .setFrameIntervalMs(frameInterval);
             
             // ✅ Re-create with 3-param constructor
             detector = new MultiFaceDetector(
