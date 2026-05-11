@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
     private FaceOverlayView faceOverlay;
     private TextView hudTextView;
     private ImageButton switchCameraBtn;
-    private ImageButton settingsBtn; // ✅ Thêm
+    private ImageButton settingsBtn;
     private TextView permissionDeniedText;
 
     // Camera & detection
@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
         faceOverlay = findViewById(R.id.faceOverlay);
         hudTextView = findViewById(R.id.hudTextView);
         switchCameraBtn = findViewById(R.id.switchCameraBtn);
-        settingsBtn = findViewById(R.id.settingsBtn); // ✅ Thêm
+        settingsBtn = findViewById(R.id.settingsBtn);
         permissionDeniedText = findViewById(R.id.permissionDeniedText);
 
         updateOverlayMirror();
@@ -105,12 +105,16 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-        // ✅ Settings button click handler
-        settingsBtn.setOnClickListener(v -> openSettings());
+        // Settings button click handler - đơn giản: mở SettingsActivity
+        settingsBtn.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivityForResult(intent, REQUEST_CODE_SETTINGS);
+        });
 
         // HUD long-click → quick settings (backup)
         hudTextView.setOnLongClickListener(v -> {
-            openSettings();
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivityForResult(intent, REQUEST_CODE_SETTINGS);
             return true;
         });
     }
@@ -141,11 +145,11 @@ public class MainActivity extends AppCompatActivity {
         hudTextView.setText(String.format("Faces: %d | FPS: %d | Time: %dms", count, fps, time));
     }
 
-    private void startCamera() {
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
+    private void startCamera() {        ListenableFuture<ProcessCameraProvider> cameraProviderFuture =
             ProcessCameraProvider.getInstance(this);
 
-        cameraProviderFuture.addListener(() -> {            try {
+        cameraProviderFuture.addListener(() -> {
+            try {
                 cameraProvider = cameraProviderFuture.get();
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
@@ -190,15 +194,11 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> 
                 Toast.makeText(this, 
                     getString(R.string.error_camera_bind, e.getMessage()), 
-                    Toast.LENGTH_SHORT).show());
-        }
+                    Toast.LENGTH_SHORT).show());        }
     }
 
-    // ===== Settings =====    private void openSettings() {
-        Intent intent = new Intent(this, SettingsActivity.class);
-        startActivityForResult(intent, REQUEST_CODE_SETTINGS);
-    }
-
+    // ===== Settings =====
+    
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
