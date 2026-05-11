@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Permissions: giữ nguyên, chỉ xóa dòng CAMERA trùng -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-
-    <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- USB Serial: cho phép kết nối USB host (giữ tương thích repo gốc) -->
     <uses-feature android:name="android.hardware.usb.host" />
@@ -17,6 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
+        <!-- MainActivity: giữ nguyên landscape + icon custom -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -27,6 +27,7 @@
             </intent-filter>
         </activity>
         
+        <!-- SettingsActivity: giữ nguyên theme + metadata -->
         <activity
             android:name=".ui.SettingsActivity"
             android:label="⚙ Cài đặt"
@@ -37,9 +38,9 @@
                 android:value=".ui.MainActivity" />
         </activity>
 
-        <!-- Đăng ký RegistrationActivity -->
+        <!-- RegistrationActivity: giữ nguyên, chỉ xóa block trùng phía dưới -->
         <activity
-    android:name=".ui.RegistrationActivity"
+            android:name=".ui.RegistrationActivity"
             android:label="👤 Đăng ký face"
             android:parentActivityName=".ui.MainActivity"
             android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
@@ -48,17 +49,11 @@
                 android:value=".ui.MainActivity" />
         </activity>
 
-        <!-- Thêm vào <application> -->
+        <!-- ManageFacesActivity: giữ nguyên -->
         <activity
-            android:name=".ui.RegistrationActivity"
-            android:label="👤 Đăng ký face"
-            android:parentActivityName=".ui.MainActivity"/>
-
-        <activity
-    android:name=".ui.ManageFacesActivity"
+            android:name=".ui.ManageFacesActivity"
             android:label="📋 Quản lý faces"
             android:parentActivityName=".ui.MainActivity"/>
 
     </application>
-
 </manifest>
