@@ -104,6 +104,7 @@ public class MultiFaceDetector {
     public void process(@NonNull ImageProxy imageProxy) {
         if (isShutdown) { imageProxy.close(); return; }
 
+        // Frame throttling
         long now = System.currentTimeMillis();
         synchronized (lock) {
             if (now - lastProcessTime < config.frameIntervalMs) {
@@ -120,14 +121,13 @@ public class MultiFaceDetector {
             imageProxy.close(); return;
         }
 
+        // ✅ FIX: Create final copies for lambda - ALL must be final
         final boolean doRecognition = config.enableRecognition;
         final FaceDao dao = this.faceDao;
         final Config cfg = this.config;
         
-        Bitmap cameraBitmap = null;
-        if (doRecognition) {
-            cameraBitmap = imageProxyToBitmap(imageProxy);
-        }
+        // ✅ KEY FIX: Single assignment with ternary + final keyword
+        final Bitmap cameraBitmap = doRecognition ? imageProxyToBitmap(imageProxy) : null;
 
         InputImage image = InputImage.fromMediaImage(
             imageProxy.getImage(),
@@ -150,6 +150,7 @@ public class MultiFaceDetector {
                 callback.onResult(new ArrayList<>(), System.currentTimeMillis() - t0, imgW, imgH);
             })
             .addOnCompleteListener(task -> {
+                // ✅ cameraBitmap is final, safe to use in lambda
                 if (cameraBitmap != null) cameraBitmap.recycle();
                 imageProxy.close();
             });
@@ -193,8 +194,8 @@ public class MultiFaceDetector {
         for (Face face : faces) {
             Rect box = face.getBoundingBox();
             if (box == null) continue;
-            
-            float area = box.width() * box.height();            if (area / (imgW * imgH) < cfg.minBoxAreaRatio) continue;
+                        float area = box.width() * box.height();
+            if (area / (imgW * imgH) < cfg.minBoxAreaRatio) continue;
             float ratio = (float) box.width() / box.height();
             if (ratio < 0.4f || ratio > 2.5f) continue;
 
@@ -215,10 +216,7 @@ public class MultiFaceDetector {
             for (RegisteredFace r : registered) {
                 if (r.embedding != null && r.embedding.length == embedding.length) {
                     float score = RegisteredFace.similarity(embedding, r.embedding);
-                    
-                    // ✅ FIX: Debug log without BuildConfig
                     Log.d(TAG, "Compare: " + r.name + " | Score: " + String.format("%.3f", score));
-                    
                     if (score > bestScore) { 
                         bestScore = score; 
                         bestMatch = r; 
@@ -231,7 +229,6 @@ public class MultiFaceDetector {
                 matched ? bestMatch.name : null, bestScore, matched ? bestMatch.id : -1);
             results.add(result);
             
-            // ✅ FIX: Debug log without BuildConfig
             if (matched && bestMatch != null) {
                 Log.d(TAG, "✓ Recognized: " + bestMatch.name + " (" + String.format("%.1f", bestScore * 100) + "%)");
             } else {
@@ -243,10 +240,10 @@ public class MultiFaceDetector {
             }
             faceBmp.recycle();
         }
-        return results;    }
+        return results;
+    }
 
-    private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {
-        List<FaceResult> results = new ArrayList<>();
+    private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {        List<FaceResult> results = new ArrayList<>();
         float imgArea = imgW * imgH;
         
         for (Face face : faces) {
