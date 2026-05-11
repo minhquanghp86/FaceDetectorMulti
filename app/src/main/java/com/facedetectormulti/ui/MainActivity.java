@@ -261,8 +261,9 @@ public class MainActivity extends AppCompatActivity {
             // Close old detector
             if (detector != null) detector.close();
             
-            // Create new config
-            MultiFaceDetector.Config newConfig = new MultiFaceDetector.Config()
+            // Create new config          
+            // ✅ Mới: dùng factory method
+            MultiFaceDetector.Config newConfig = MultiFaceDetector.Config.createDefault()
                 .setMinFaceSize(minFaceSize)
                 .setMinConfidence(minConfidence)
                 .setAccurateMode(accurateMode)
@@ -270,12 +271,15 @@ public class MainActivity extends AppCompatActivity {
                 .setAspectRatioTolerance(0.6f)
                 .setFrameIntervalMs(frameInterval);
             
-            // Create new detector
+            // ❌ Cũ: detector = new MultiFaceDetector(callback, Config.DEFAULT);
+            // ✅ Mới:
             detector = new MultiFaceDetector(result ->
-                runOnUiThread(() -> {
+    runOnUiThread(() -> {
                     faceOverlay.update(result);
                     updateHud(result);
-                }), newConfig);
+                })
+    
+            );
             
             // Re-bind camera to apply new config
             if (cameraProvider != null) {
