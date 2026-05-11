@@ -12,7 +12,6 @@ import androidx.annotation.Nullable;
 
 import com.facedetectormulti.detection.FaceResult;
 import com.facedetectormulti.detection.MultiFaceDetector;
-
 import java.util.Collections;
 import java.util.List;
 
