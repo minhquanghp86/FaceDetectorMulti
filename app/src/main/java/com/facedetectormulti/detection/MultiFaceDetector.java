@@ -17,10 +17,19 @@ import com.google.mlkit.vision.face.FaceDetectorOptions;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Multi-face detector with face recognition support.
+ * Uses ML Kit for detection + improved hybrid features for recognition.
+ * 
+ * Note: boxNorm uses float[4] = {left, top, right, bottom} normalized to [0,1]
+ */
 public class MultiFaceDetector {
 
     private static final String TAG = "MultiFaceDetector";
-    private static final float RECOGNITION_THRESHOLD = 0.75f;
+    
+    // ✅ Threshold tối ưu cho improved hybrid extractor
+    // Same person: ~0.60-0.85 | Different person: ~0.10-0.35
+    private static final float RECOGNITION_THRESHOLD = 0.55f;
 
     public static class Config {
         public float minFaceSize = 0.12f;
@@ -38,8 +47,7 @@ public class MultiFaceDetector {
         }
         public Config setAccurateMode(boolean accurate) { 
             this.accurateMode = accurate; 
-            return this; 
-        }
+            return this;         }
         public Config setMinConfidence(float conf) { 
             this.minConfidence = Math.max(0f, Math.min(1f, conf)); 
             return this; 
@@ -47,7 +55,8 @@ public class MultiFaceDetector {
         public Config setMinBoxAreaRatio(float ratio) { 
             this.minBoxAreaRatio = Math.max(0.001f, Math.min(0.05f, ratio)); 
             return this; 
-        }        public Config setFrameIntervalMs(long interval) { 
+        }
+        public Config setFrameIntervalMs(long interval) { 
             this.frameIntervalMs = Math.max(0, interval); 
             return this; 
         }
@@ -72,21 +81,25 @@ public class MultiFaceDetector {
     private int nextTempId = 1000;
     private boolean isShutdown = false;
 
+    // ✅ Constructor: 3 params (callback, context, config)
     public MultiFaceDetector(@NonNull DetectionCallback callback, @NonNull Context context, @NonNull Config config) {
         this.callback = callback;
         this.context = context;
         this.config = config;
+        
         if (config.enableRecognition) {
             this.faceDao = FaceDatabase.getInstance(context).faceDao();
+            Log.d(TAG, "Recognition enabled");
         }
         this.mlKitDetector = createMlKitDetector(config);
+        Log.d(TAG, "Initialized: minFace=" + config.minFaceSize + ", rec=" + config.enableRecognition);
     }
 
     private FaceDetector createMlKitDetector(Config cfg) {
-        FaceDetectorOptions.Builder builder = new FaceDetectorOptions.Builder()
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+        FaceDetectorOptions.Builder builder = new FaceDetectorOptions.Builder()            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
             .setMinFaceSize(cfg.minFaceSize)
             .enableTracking();
+        
         if (cfg.accurateMode) {
             builder.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE);
         } else {
@@ -97,7 +110,8 @@ public class MultiFaceDetector {
 
     public void process(@NonNull ImageProxy imageProxy) {
         if (isShutdown) { imageProxy.close(); return; }
-        // Throttling
+
+        // Frame throttling
         long now = System.currentTimeMillis();
         synchronized (lock) {
             if (now - lastProcessTime < config.frameIntervalMs) {
@@ -114,13 +128,15 @@ public class MultiFaceDetector {
             imageProxy.close(); return;
         }
 
-        // ✅ FIX: Create final copies for lambda - ALL must be final
+        // ✅ Create final copies for lambda (fix "effectively final" error)
         final boolean doRecognition = config.enableRecognition;
         final FaceDao dao = this.faceDao;
         final Config cfg = this.config;
         
-        // ✅ KEY FIX: Single assignment with ternary + final keyword
-        final Bitmap cameraBitmap = doRecognition ? imageProxyToBitmap(imageProxy) : null;
+        Bitmap cameraBitmap = null;
+        if (doRecognition) {
+            cameraBitmap = imageProxyToBitmap(imageProxy);
+        }
 
         InputImage image = InputImage.fromMediaImage(
             imageProxy.getImage(),
@@ -129,8 +145,7 @@ public class MultiFaceDetector {
 
         mlKitDetector.process(image)
             .addOnSuccessListener(faces -> {
-                long dt = System.currentTimeMillis() - t0;
-                List<? extends FaceResult> results;
+                long dt = System.currentTimeMillis() - t0;                List<? extends FaceResult> results;
                 
                 if (doRecognition && dao != null && cameraBitmap != null) {
                     results = recognizeFaces(faces, cameraBitmap, dao, imgW, imgH, cfg);
@@ -144,8 +159,8 @@ public class MultiFaceDetector {
                 callback.onResult(new ArrayList<>(), System.currentTimeMillis() - t0, imgW, imgH);
             })
             .addOnCompleteListener(task -> {
-                // ✅ cameraBitmap is final, safe to use in lambda
-                if (cameraBitmap != null) cameraBitmap.recycle();                imageProxy.close();
+                if (cameraBitmap != null) cameraBitmap.recycle();
+                imageProxy.close();
             });
     }
 
@@ -153,6 +168,7 @@ public class MultiFaceDetector {
         try {
             android.media.Image image = imageProxy.getImage();
             if (image == null) return null;
+            
             int w = imageProxy.getWidth(), h = imageProxy.getHeight();
             android.media.Image.Plane[] planes = image.getPlanes();
             if (planes.length == 0) { image.close(); return null; }
@@ -161,6 +177,7 @@ public class MultiFaceDetector {
             int pixelStride = planes[0].getPixelStride(), rowStride = planes[0].getRowStride();
             Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             int[] pixels = new int[w * h];
+            
             buffer.rewind();
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
@@ -175,11 +192,11 @@ public class MultiFaceDetector {
             image.close();
             return bitmap;
         } catch (Exception e) {
-            Log.e(TAG, "Bitmap conversion failed", e);
+            Log.e(TAG, "ImageProxy conversion failed", e);
             return null;
-        }
-    }
+        }    }
 
+    // Recognition: compare with registered faces using hybrid features
     private List<FaceRecognitionResult> recognizeFaces(List<Face> faces, Bitmap cameraFrame,
                                                        FaceDao dao, int imgW, int imgH, Config cfg) {
         List<FaceRecognitionResult> results = new ArrayList<>();
@@ -189,11 +206,14 @@ public class MultiFaceDetector {
             Rect box = face.getBoundingBox();
             if (box == null) continue;
             
+            // Basic filters
             float area = box.width() * box.height();
             if (area / (imgW * imgH) < cfg.minBoxAreaRatio) continue;
             
             float ratio = (float) box.width() / box.height();
             if (ratio < 0.4f || ratio > 2.5f) continue;
+
+            // Create temp FaceResult with float[] boxNorm
             float[] boxNorm = new float[]{
                 (float)box.left/imgW, (float)box.top/imgH,
                 (float)box.right/imgW, (float)box.bottom/imgH
@@ -201,30 +221,58 @@ public class MultiFaceDetector {
             FaceResult temp = new FaceResult(0, boxNorm, -1f, 
                 face.getHeadEulerAngleY(), face.getHeadEulerAngleZ(), -1f, -1f, System.currentTimeMillis());
             
+            // Crop face with margin for better context
             Bitmap faceBmp = FaceEmbeddingExtractor.cropFace(cameraFrame, temp, 20);
             if (faceBmp == null) continue;
             
+            // Extract embedding using improved hybrid features
             float[] embedding = FaceEmbeddingExtractor.extract(faceBmp);
+            
+            // Find best match in registered faces
             float bestScore = 0f;
             RegisteredFace bestMatch = null;
             
             for (RegisteredFace r : registered) {
                 if (r.embedding != null && r.embedding.length == embedding.length) {
                     float score = RegisteredFace.similarity(embedding, r.embedding);
-                    if (score > bestScore) { bestScore = score; bestMatch = r; }
+                    
+                    // ✅ Debug log similarity scores
+                    if (BuildConfig.DEBUG) {
+                        Log.d(TAG, "Compare: " + r.name + " | Score: " + String.format("%.3f", score));
+                    }
+                    
+                    if (score > bestScore) { 
+                        bestScore = score; 
+                        bestMatch = r;                     }
                 }
             }
             
+            // Determine if recognized
             boolean matched = bestScore >= RECOGNITION_THRESHOLD;
-            results.add(new FaceRecognitionResult(temp, matched,
-                matched ? bestMatch.name : null, bestScore, matched ? bestMatch.id : -1));
+            FaceRecognitionResult result = new FaceRecognitionResult(temp, matched,
+                matched ? bestMatch.name : null, bestScore, matched ? bestMatch.id : -1);
+            results.add(result);
             
-            if (matched && bestMatch != null) dao.incrementDetectionCount(bestMatch.id);
+            // Log final result
+            if (BuildConfig.DEBUG) {
+                if (matched && bestMatch != null) {
+                    Log.d(TAG, "✓ Recognized: " + bestMatch.name + " (" + String.format("%.1f", bestScore * 100) + "%)");
+                } else {
+                    Log.d(TAG, "✗ Unknown (best: " + String.format("%.3f", bestScore) + ", threshold: " + RECOGNITION_THRESHOLD + ")");
+                }
+            }
+            
+            // Increment detection count for matched face
+            if (matched && bestMatch != null) {
+                dao.incrementDetectionCount(bestMatch.id);
+            }
+            
             faceBmp.recycle();
         }
         return results;
     }
 
+    // Basic detection without recognition
     private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {
         List<FaceResult> results = new ArrayList<>();
         float imgArea = imgW * imgH;
@@ -243,8 +291,8 @@ public class MultiFaceDetector {
             if (cfg.minConfidence > 0.9f && smile != null && smile < 0.1f) continue;
             
             float[] boxNorm = new float[]{
-                Math.max(0f, (float)box.left/imgW), Math.max(0f, (float)box.top/imgH),                Math.min(1f, (float)box.right/imgW), Math.min(1f, (float)box.bottom/imgH)
-            };
+                Math.max(0f, (float)box.left/imgW), Math.max(0f, (float)box.top/imgH),
+                Math.min(1f, (float)box.right/imgW), Math.min(1f, (float)box.bottom/imgH)            };
             
             int trackId = face.getTrackingId() != null ? face.getTrackingId() : nextTempId++;
             results.add(new FaceResult(trackId, boxNorm,
@@ -257,8 +305,13 @@ public class MultiFaceDetector {
     }
 
     // ===== Public API =====
-    public void setFrameIntervalMs(long ms) { config.frameIntervalMs = Math.max(0, ms); }
-    public Config getCurrentConfig() { return config; }
+    public void setFrameIntervalMs(long ms) { 
+        config.frameIntervalMs = Math.max(0, ms); 
+    }
+    
+    public Config getCurrentConfig() { 
+        return config; 
+    }
     
     public void enableRecognition(boolean enable) {
         config.enableRecognition = enable;
@@ -269,7 +322,14 @@ public class MultiFaceDetector {
     
     public void close() {
         isShutdown = true;
-        try { mlKitDetector.close(); } catch (Exception e) { Log.e(TAG, "Close error", e); }
+        try { 
+            mlKitDetector.close(); 
+        } catch (Exception e) { 
+            Log.e(TAG, "Error closing detector", e); 
+        }
     }
-    public boolean isReady() { return !isShutdown; }
+    
+    public boolean isReady() { 
+        return !isShutdown; 
+    }
 }
