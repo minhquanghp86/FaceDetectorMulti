@@ -11,6 +11,7 @@
         android:orientation="vertical"
         android:padding="8dp">
 
+        <!-- Tiêu đề -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -28,7 +29,8 @@
             android:layout_gravity="center"
             android:background="#333333"
             android:scaleType="centerCrop"
-            android:layout_marginBottom="16dp"/>
+            android:layout_marginBottom="16dp"
+            android:contentDescription="Preview face"/>
 
         <!-- Name input -->
         <TextView
@@ -46,7 +48,8 @@
             android:textColorHint="#666666"
             android:background="#333333"
             android:padding="12dp"
-            android:layout_marginBottom="8dp"/>
+            android:layout_marginBottom="8dp"
+            android:inputType="textPersonName"/>
 
         <!-- Description (optional) -->
         <TextView
@@ -64,7 +67,8 @@
             android:textColorHint="#666666"
             android:background="#333333"
             android:padding="12dp"
-            android:layout_marginBottom="24dp"/>
+            android:layout_marginBottom="24dp"
+            android:inputType="text"/>
 
         <!-- Buttons -->
         <LinearLayout
