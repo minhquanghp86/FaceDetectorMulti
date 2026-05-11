@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1A1A1A"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <!-- Tiêu đề -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚙ Cài đặt nhận diện"
+            android:textColor="#00FF50"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:paddingBottom="16dp"/>
+
+        <!-- ═══ minFaceSize ═══ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Kích thước mặt tối thiểu (minFaceSize)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Nhỏ hơn → detect xa hơn, tốn CPU hơn"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="4dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <SeekBar
+                android:id="@+id/seek_min_face_size"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"                android:progressTint="#00FF50"
+                android:thumbTint="#00FF50"
+                android:max="25"
+                android:progress="12"/>
+
+            <TextView
+                android:id="@+id/tv_min_face_size_val"
+                android:layout_width="52dp"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:gravity="end"
+                android:paddingStart="8dp"
+                android:text="0.12"/>
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- ═══ minConfidence Filter ═══ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ngưỡng lọc kết quả (Min Confidence)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Lớn hơn → ít box ảo, nhưng có thể bỏ sót face mờ"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="4dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <SeekBar
+                android:id="@+id/seek_min_confidence"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#00FF50"
+                android:thumbTint="#00FF50"
+                android:max="100"
+                android:progress="50"/>
+            <TextView
+                android:id="@+id/tv_min_confidence_val"
+                android:layout_width="52dp"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:gravity="end"
+                android:paddingStart="8dp"
+                android:text="0.50"/>
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- ═══ Performance Mode ═══ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Chế độ nhận diện (cần restart camera)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"
+            android:paddingBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/switch_perf_mode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Accurate (chính xác, chậm hơn)"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:thumbTint="#00FF50"
+            android:trackTint="#004422"/>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- ═══ Resolution ═══ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Độ phân giải camera (cần restart camera)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"
+            android:paddingBottom="8dp"/>
+
+        <RadioGroup
+            android:id="@+id/rg_resolution"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/rb_res_640"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="640×480  (nhanh, pin tiết kiệm)"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00FF50"
+                android:checked="true"/>
+
+            <RadioButton
+                android:id="@+id/rb_res_1280"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1280×720  (cân bằng — khuyến nghị)"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00FF50"/>
+
+            <RadioButton
+                android:id="@+id/rb_res_1920"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1920×1080  (chi tiết, tốn pin/CPU)"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00FF50"/>
+        </RadioGroup>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- ═══ Frame Throttle ═══ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Giới hạn FPS xử lý (Frame Throttle)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Lớn hơn → ít frame xử lý, tiết kiệm pin, mượt hơn"
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="4dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <SeekBar
+                android:id="@+id/seek_frame_interval"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#00FF50"
+                android:thumbTint="#00FF50"
+                android:max="200"
+                android:progress="100"/>
+
+            <TextView
+                android:id="@+id/tv_frame_interval_val"
+                android:layout_width="64dp"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                android:gravity="end"
+                android:paddingStart="8dp"
+                android:text="100ms"/>
+        </LinearLayout>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- Reset button -->
+        <Button
+            android:id="@+id/btn_reset_defaults"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="↺  Reset về mặc định"
+            android:textColor="#FF4444"
+            android:backgroundTint="#2A1010"
+            android:layout_marginTop="8dp"/>
+
+        <!-- Save hint -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠ Cài đặt được lưu tự động. Restart camera để áp dụng thay đổi Resolution/Performance."
+            android:textColor="#888888"
+            android:textSize="11sp"
+            android:gravity="center"
+            android:paddingTop="12dp"/>
+
+    </LinearLayout>
+</ScrollView>
