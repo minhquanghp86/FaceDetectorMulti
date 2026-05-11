@@ -1,7 +1,6 @@
-package com.example.facedetectormulti.ui;
+package com.facedetectormulti.ui;  // ✅ Đúng package
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -13,14 +12,12 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.camera.core.CameraSelector;
 
-import com.example.facedetectormulti.R;
-import com.example.facedetectormulti.detection.FaceResult;
-
-import java.util.ArrayList;
-import java.util.List;
+// ✅ Import đúng package
+import com.facedetectormulti.detection.DetectionCallback;
+import com.facedetectormulti.detection.FaceResult;
 
 public class FaceOverlayView extends View {
-
+    
     // Dynamic UI values từ resources
     private final float boxStrokeWidth;
     private final float textSize;
