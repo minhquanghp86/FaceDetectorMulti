@@ -1,4 +1,6 @@
 package com.minhquanghp86.faceservotracker.detection;
+// ✅ Dòng 1: đổi package
+package com.facedetectormulti.ui;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -10,9 +12,11 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
+// ✅ Thêm import này
+import com.facedetectormulti.detection.MultiFaceDetector;
+
 import java.util.Collections;
 import java.util.List;
-
 /**
  * FaceOverlayView
  * ===============
