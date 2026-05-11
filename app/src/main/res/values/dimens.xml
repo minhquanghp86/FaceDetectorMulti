@@ -1,0 +1,10 @@
+<!-- res/values/dimens.xml -->
+<resources>
+    <!-- UI Dimensions - scalable theo density -->
+    <dimen name="overlay_box_stroke">3dp</dimen>
+    <dimen name="overlay_text_size">14sp</dimen>
+    <dimen name="overlay_text_padding">8dp</dimen>
+    <dimen name="hud_text_size">12sp</dimen>
+    <dimen name="button_size">48dp</dimen>
+    <dimen name="button_margin">16dp</dimen>
+</resources>

@@ -1,21 +1,82 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
+<androidx.constraintlayout.widget.ConstraintLayout 
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:keepScreenOn="true"
+    tools:context=".ui.MainActivity">
 
-    <!-- Camera live preview -->
+    <!-- Camera Preview -->
     <androidx.camera.view.PreviewView
         android:id="@+id/cameraPreview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Overlay trong suốt vẽ bounding box lên trên preview -->
+    <!-- Face Overlay -->
     <com.facedetectormulti.ui.FaceOverlayView
         android:id="@+id/faceOverlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/transparent" />
+        android:layout_height="match_parent" />
 
-</FrameLayout>
+    <!-- HUD: Stats (top-left) -->
+    <TextView
+        android:id="@+id/hudTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:background="#80000000"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="6dp"
+        android:textColor="@android:color/white"
+        android:textSize="12sp"
+        android:fontFamily="monospace"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Faces: 2 | FPS: 15 | Time: 67ms" />
+
+    <!-- Camera Switch Button (top-right) -->
+    <ImageButton
+        android:id="@+id/switchCameraBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Chuyển camera"
+        android:src="@drawable/ic_camera_switch"
+        android:tint="@android:color/white"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- ✅ Settings Button (bottom-right) -->
+    <ImageButton
+        android:id="@+id/settingsBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Cài đặt"
+        android:src="@android:drawable/ic_menu_preferences"
+        android:tint="@android:color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Permission denied message (center) -->
+    <TextView
+        android:id="@+id/permissionDeniedText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#CC000000"
+        android:padding="16dp"
+        android:text="❌ Cần quyền Camera để hoạt động"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
