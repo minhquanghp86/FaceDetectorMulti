@@ -1,5 +1,6 @@
 package com.facedetectormulti.ui;
 
+import android.graphics.Bitmap;  // ✅ Thêm import Bitmap
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -43,15 +44,24 @@ public class ManageFacesActivity extends AppCompatActivity {
         new Thread(() -> {
             facesList = FaceDatabase.getInstance(this).faceDao().getAllFaces();
             runOnUiThread(() -> {
-                adapter = new FacesAdapter(facesList);
+                adapter = new FacesAdapter(facesList);  // ✅ Constructor có tham số
                 recyclerView.setAdapter(adapter);
             });
-        }).start();
-    }
-    private class FacesAdapter extends RecyclerView.Adapter<FacesAdapter.ViewHolder> {
+        }).start();    }
+
+    // ✅ Inner Adapter class - FIX: public constructor + public methods
+    public class FacesAdapter extends RecyclerView.Adapter<FacesAdapter.ViewHolder> {
         private List<RegisteredFace> faces;
         
-        ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // ✅ Constructor public với tham số
+        public FacesAdapter(List<RegisteredFace> faces) {
+            this.faces = faces;
+        }
+        
+        @NonNull
+        @Override
+        // ✅ FIX: phải là public, không phải package-private
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_registered_face, parent, false);
             return new ViewHolder(view);
@@ -66,8 +76,10 @@ public class ManageFacesActivity extends AppCompatActivity {
             
             // Load avatar
             if (face.avatarBase64 != null) {
-                Bitmap avatar = FaceEmbeddingExtractor.fromBase64(face.avatarBase64);
-                holder.ivAvatar.setImageBitmap(avatar);
+                Bitmap avatar = FaceEmbeddingExtractor.fromBase64(face.avatarBase64);  // ✅ Bitmap đã import
+                if (avatar != null) {
+                    holder.ivAvatar.setImageBitmap(avatar);
+                }
             }
             
             // Delete button
@@ -84,8 +96,7 @@ public class ManageFacesActivity extends AppCompatActivity {
                                 Toast.makeText(ManageFacesActivity.this, 
                                     "✓ Đã xóa", Toast.LENGTH_SHORT).show();
                             });
-                        }).start();
-                    })
+                        }).start();                    })
                     .setNegativeButton("Hủy", null)
                     .show();
             });
@@ -96,7 +107,9 @@ public class ManageFacesActivity extends AppCompatActivity {
             return faces.size();
         }
 
-        class ViewHolder extends RecyclerView.ViewHolder {            ImageView ivAvatar;
+        // ✅ ViewHolder class
+        class ViewHolder extends RecyclerView.ViewHolder {
+            ImageView ivAvatar;
             TextView tvName, tvDescription, tvCount;
             Button btnDelete;
             
