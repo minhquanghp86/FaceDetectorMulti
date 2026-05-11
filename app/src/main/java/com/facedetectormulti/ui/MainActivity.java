@@ -49,7 +49,7 @@ public class MainActivity extends AppCompatActivity {
         cameraExecutor = Executors.newSingleThreadExecutor();
 
         detector = new MultiFaceDetector(result ->
-                runOnUiThread(() -> faceOverlay.update(result))
+        runOnUiThread(() -> faceOverlay.update(result.faces, result.processingTimeMs))
         );
 
         if (hasCameraPermission()) {
