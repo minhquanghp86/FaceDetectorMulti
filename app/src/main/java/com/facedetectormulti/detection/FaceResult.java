@@ -1,21 +1,23 @@
 package com.facedetectormulti.detection;
 
 /**
- * Represents a detected face with normalized bounding box and attributes.
+ * Represents a detected face with normalized bounding box.
  * boxNorm: float[4] = {left, top, right, bottom} normalized to [0, 1]
  */
 public class FaceResult {
     public final int trackingId;
-    public final float[] boxNorm;  // ✅ float[4]: {left, top, right, bottom} normalized
-    public final float smilingProbability;  // -1f if not available
-    public final float eulerY;  // head rotation Y axis
-    public final float eulerZ;  // head rotation Z axis
+    public final float[] boxNorm;  // ✅ float[4]: {left, top, right, bottom}
+    public final float smilingProbability;
+    public final float eulerY;
+    public final float eulerZ;
     public final float leftEyeOpenProbability;
     public final float rightEyeOpenProbability;
     public final long timestamp;
 
-    public FaceResult(int trackingId, float[] boxNorm, float smilingProbability, 
-                     float eulerY, float eulerZ, float leftEyeOpen, float rightEyeOpen, long timestamp) {
+    // ✅ Constructor chính: nhận float[]
+    public FaceResult(int trackingId, float[] boxNorm, float smilingProbability,
+                     float eulerY, float eulerZ, float leftEyeOpen, 
+                     float rightEyeOpen, long timestamp) {
         this.trackingId = trackingId;
         this.boxNorm = boxNorm;
         this.smilingProbability = smilingProbability;
@@ -25,13 +27,12 @@ public class FaceResult {
         this.rightEyeOpenProbability = rightEyeOpen;
         this.timestamp = timestamp;
     }
-    
-    // Convenience constructor for simple cases
+
+    // ✅ Convenience constructor cho detection cơ bản
     public FaceResult(int trackingId, float left, float top, float right, float bottom,
                      float smilingProbability, float eulerY, long timestamp) {
-        this(trackingId, 
-             new float[]{left, top, right, bottom},
-             smilingProbability, eulerY, 0f, -1f, -1f, timestamp);
+        this(trackingId, new float[]{left, top, right, bottom}, smilingProbability,
+             eulerY, 0f, -1f, -1f, timestamp);
     }
 
     public float centerX() { return (boxNorm[0] + boxNorm[2]) / 2f; }
