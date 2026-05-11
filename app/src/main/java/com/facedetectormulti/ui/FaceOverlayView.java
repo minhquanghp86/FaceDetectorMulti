@@ -11,6 +11,7 @@ import android.view.View;
 import androidx.annotation.Nullable;
 
 import com.facedetectormulti.detection.FaceResult;
+import com.facedetectormulti.detection.MultiFaceDetector;
 
 import java.util.Collections;
 import java.util.List;
@@ -60,10 +61,10 @@ public class FaceOverlayView extends View {
         statsPaint.setShadowLayer(4f, 0, 0, Color.BLACK);
     }
 
-    /** Gọi từ UI thread khi có kết quả mới */
-    public void update(List<FaceResult> results, long processingMs) {
-        this.faces = results != null ? results : Collections.emptyList();
-        this.processingTimeMs = processingMs;
+    public void update(MultiFaceDetector.DetectionResult result) {
+        this.faces = result != null && result.faces != null
+                ? result.faces : Collections.emptyList();
+        this.processingTimeMs = result != null ? result.processingMs : 0;
         invalidate();
     }
 
