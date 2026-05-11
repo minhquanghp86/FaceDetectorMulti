@@ -1,4 +1,4 @@
-package com.example.facedetectormulti.ui;
+package com.facedetectormulti.ui;  // ✅ Đúng package của anh
 
 import android.Manifest;
 import android.content.SharedPreferences;
@@ -19,10 +19,14 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
-import com.example.facedetectormulti.R;
-import com.example.facedetectormulti.detection.DetectionCallback;
-import com.example.facedetectormulti.detection.DetectionResult;
-import com.example.facedetectormulti.detection.MultiFaceDetector;
+// ✅ Import đúng package com.facedetectormulti
+import com.facedetectormulti.R;
+import com.facedetectormulti.detection.DetectionCallback;
+import com.facedetectormulti.detection.DetectionResult;
+import com.facedetectormulti.detection.MultiFaceDetector;
+
+// ✅ Quan trọng: Import ListenableFuture từ Guava
+import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
