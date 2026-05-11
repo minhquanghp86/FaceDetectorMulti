@@ -33,7 +33,6 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
     private static final int REQUEST_CODE_PERMISSIONS = 100;
     private static final String[] REQUIRED_PERMISSIONS = {Manifest.permission.CAMERA};
     
-    // Camera switching
     private static final String PREF_CAMERA_FACING = "pref_camera_facing";
     private int currentLensFacing = CameraSelector.LENS_FACING_FRONT;
     
@@ -96,8 +95,8 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
             if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
                 return false;
             }
-        }        return true;
-    }
+        }
+        return true;    }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
@@ -131,37 +130,31 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
     private void bindCameraUseCases() {
         if (cameraProvider == null) return;
         
-        // Unbind tất cả use cases cũ trước khi bind mới
         cameraProvider.unbindAll();
         
-        // Camera selector với fallback an toàn
         CameraSelector cameraSelector = new CameraSelector.Builder()
             .requireLensFacing(currentLensFacing)
             .build();
             
-        // Kiểm tra camera có sẵn không
         if (!cameraProvider.hasCamera(cameraSelector)) {
             Log.w(TAG, "Camera không khả dụng, thử fallback");
             currentLensFacing = currentLensFacing == CameraSelector.LENS_FACING_FRONT 
                 ? CameraSelector.LENS_FACING_BACK 
                 : CameraSelector.LENS_FACING_FRONT;
-            cameraSelector = new CameraSelector.Builder()                .requireLensFacing(currentLensFacing)
+            cameraSelector = new CameraSelector.Builder()
+                .requireLensFacing(currentLensFacing)
                 .build();
         }
-        
-        // Preview configuration
-        preview = new Preview.Builder()
+                preview = new Preview.Builder()
             .setTargetRotation(previewView.getDisplay().getRotation())
             .build();
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
         
-        // ImageAnalysis configuration với throttle tích hợp
         analysis = new ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setTargetRotation(previewView.getDisplay().getRotation())
             .build();
         
-        // Set analyzer với detector đã được tối ưu
         analysis.setAnalyzer(cameraExecutor, imageProxy -> {
             if (detector.isReady()) {
                 detector.process(imageProxy);
@@ -173,28 +166,25 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
         try {
             cameraProvider.bindToLifecycle(this, cameraSelector, preview, analysis);
             saveCameraPreference();
-            Log.d(TAG, "Camera bound successfully: " + 
-                (currentLensFacing == CameraSelector.LENS_FACING_FRONT ? "Front" : "Back"));
+            Log.d(TAG, "Camera bound successfully");
         } catch (Exception e) {
             Log.e(TAG, "Bind camera failed", e);
             runOnUiThread(() -> 
                 Toast.makeText(this, "Lỗi kết nối camera: " + e.getMessage(), 
                     Toast.LENGTH_SHORT).show());
         }
-    }
+    } // ✅ ĐÓNG bindCameraUseCases() - Đây là chỗ thiếu trong code cũ!
 
     private void setupCameraSwitchListener() {
         switchCameraBtn.setOnClickListener(v -> {
-            // Toggle lens facing
             currentLensFacing = currentLensFacing == CameraSelector.LENS_FACING_FRONT 
                 ? CameraSelector.LENS_FACING_BACK 
                 : CameraSelector.LENS_FACING_FRONT;
             
-            // Update UI feedback
             switchCameraBtn.setEnabled(false);
             switchCameraBtn.setAlpha(0.5f);
             
-            // Rebind camera với delay nhỏ để tránh race condition            cameraExecutor.execute(() -> {
+            cameraExecutor.execute(() -> {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException ignored) {}
@@ -204,15 +194,12 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
                     switchCameraBtn.setEnabled(true);
                     switchCameraBtn.setAlpha(1.0f);
                 });
-            });
-        });
-    }
+            });        });
+    } // ✅ ĐÓNG setupCameraSwitchListener()
 
-    // ===== Lifecycle Management =====
     @Override
     protected void onPause() {
         super.onPause();
-        // Tạm dừng analysis để tiết kiệm tài nguyên khi app background
         if (analysis != null) {
             analysis.clearAnalyzer();
         }
@@ -221,7 +208,6 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
     @Override
     protected void onResume() {
         super.onResume();
-        // Resume analyzer nếu camera đã sẵn sàng
         if (cameraProvider != null && analysis != null && detector.isReady()) {
             analysis.setAnalyzer(cameraExecutor, imageProxy -> detector.process(imageProxy));
         }
@@ -236,14 +222,13 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
         }
     }
 
-    // ===== DetectionCallback Implementation =====
     @Override
     public void onDetectionResult(DetectionResult result) {
         runOnUiThread(() -> {
             overlayView.setResults(result.getFaces());
             overlayView.invalidate();
             
-            // Update HUD với thông tin performance            long fps = result.getFps();
+            long fps = result.getFps();
             int faceCount = result.getFaces().size();
             hudTextView.setText(String.format("Faces: %d | FPS: %d | Time: %dms", 
                 faceCount, fps, result.getProcessingTimeMs()));
@@ -257,4 +242,4 @@ public class MainActivity extends AppCompatActivity implements DetectionCallback
             Toast.makeText(this, "Lỗi phát hiện: " + error, Toast.LENGTH_SHORT).show();
         });
     }
-}
+} // ✅ ĐÓNG class MainActivity
