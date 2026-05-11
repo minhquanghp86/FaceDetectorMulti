@@ -1,6 +1,7 @@
-package com.facedetectormulti.detection;  // ✅ Đúng package
+package com.facedetectormulti.detection;
 
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
@@ -13,169 +14,90 @@ import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiFaceDetector {
-    
+
     private static final String TAG = "MultiFaceDetector";
-    
-    private static final long DEFAULT_MIN_FRAME_INTERVAL_MS = 100;
-    private long minFrameIntervalMs = DEFAULT_MIN_FRAME_INTERVAL_MS;
-    
-    private final FaceDetector faceDetector;
+
+    public interface DetectionCallback {
+        void onResult(DetectionResult result);
+    }
+
+    private final FaceDetector mlKitDetector;
     private final DetectionCallback callback;
-    
-    private long lastProcessTime = 0;
-    private final Object lock = new Object();
-    
-    private final Map<Integer, Integer> temporaryIdMap = new HashMap<>();
-    private int nextTempId = 1000;
-    
-    private final AtomicBoolean isReady = new AtomicBoolean(false);
-    private boolean isShutdown = false;
 
     public MultiFaceDetector(@NonNull DetectionCallback callback) {
         this.callback = callback;
-        
-        // ✅ Fix: Builder pattern phải kết thúc bằng .build()
+
         FaceDetectorOptions options = new FaceDetectorOptions.Builder()
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)            .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
-            .enableTracking()
+            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
             .setMinFaceSize(0.1f)
-            .build(); // ✅ Quan trọng: đóng builder
-            
-        faceDetector = FaceDetection.getClient(options);
-        isReady.set(true);
-    }
+            .enableTracking()
+            .build();
 
-    public void setFrameIntervalMs(long intervalMs) {
-        this.minFrameIntervalMs = Math.max(0, intervalMs);
-    }
-
-    public boolean isReady() {
-        return isReady.get() && !isShutdown;
+        mlKitDetector = FaceDetection.getClient(options);
     }
 
     public void process(@NonNull ImageProxy imageProxy) {
-        if (isShutdown || !isReady.get()) {
-            imageProxy.close();
-            return;
-        }
-        
-        long currentTime = System.currentTimeMillis();
-        
-        synchronized (lock) {
-            if (currentTime - lastProcessTime < minFrameIntervalMs) {
-                imageProxy.close();
-                return;
-            }
-            lastProcessTime = currentTime;
-        }
-        
-        long startTime = System.currentTimeMillis();
-        
-        try {
-            InputImage inputImage = InputImage.fromMediaImage(
-                imageProxy.getImage(), 
-                imageProxy.getImageInfo().getRotationDegrees()
-            );
-            
-            faceDetector.process(inputImage)
-                .addOnSuccessListener(faces -> {
-                    long processTime = System.currentTimeMillis() - startTime;
-                    DetectionResult result = convertToDetectionResult(faces, processTime);
-                    if (callback != null) {
-                        callback.onDetectionResult(result);
-                    }
-                })
-                .addOnFailureListener(e -> {                    Log.e(TAG, "Face detection failed", e);
-                    if (callback != null) {
-                        callback.onDetectionError(e.getMessage());
-                    }
-                })
-                .addOnCompleteListener(task -> {
-                    imageProxy.close();
-                });
-                
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing image", e);
-            imageProxy.close();
-            if (callback != null) {
-                callback.onDetectionError("Process error: " + e.getMessage());
-            }
-        }
-    }
+        final long t0 = System.currentTimeMillis();
+        final int w = imageProxy.getWidth();
+        final int h = imageProxy.getHeight();
 
-    @NonNull
-    private DetectionResult convertToDetectionResult(@NonNull List<Face> faces, long processingTimeMs) {
-        List<FaceResult> results = new ArrayList<>(faces.size());
-        long currentTime = System.currentTimeMillis();
-        
-        for (Face face : faces) {
-            Rect bounds = face.getBoundingBox();
-            if (bounds == null) continue;
-            
-            int trackingId = getStableTrackingId(face);
-            
-            float leftNorm = (float) bounds.left / 1000f;
-            float topNorm = (float) bounds.top / 1000f;
-            float rightNorm = (float) bounds.right / 1000f;
-            float bottomNorm = (float) bounds.bottom / 1000f;
-            
-            FaceResult faceResult = new FaceResult(
-    trackingId,
-    leftNorm, topNorm, rightNorm, bottomNorm,
-                // Smile probability: có thể null
-                face.getSmilingProbability() != null ? face.getSmilingProbability() : -1f,
-                // Euler Y: ML Kit face-detection 16.1.5 trả về float primitive, luôn có giá trị
-                face.getHeadEulerAngleY(), 
-    currentTime
-            );
-            results.add(faceResult);
-        }
-        
-        long fps = processingTimeMs > 0 ? 1000 / processingTimeMs : 0;
-        
-        return new DetectionResult(results, processingTimeMs, fps);
-    }
+        if (w == 0 || h == 0 || imageProxy.getImage() == null) {
+            imageProxy.close();
+            return;        }
 
-    private int getStableTrackingId(@NonNull Face face) {        Integer trackingId = face.getTrackingId();
-        
-        if (trackingId != null) {
-            temporaryIdMap.values().removeIf(tempId -> tempId == trackingId);
-            return trackingId;
-        } else {
-            Rect bounds = face.getBoundingBox();
-            if (bounds != null) {
-                int positionHash = (bounds.centerX() * 31 + bounds.centerY()) % 1000;
-                
-                if (!temporaryIdMap.containsKey(positionHash)) {
-                    temporaryIdMap.put(positionHash, nextTempId++);
-                    if (temporaryIdMap.size() > 50) {
-                        temporaryIdMap.remove(temporaryIdMap.keySet().iterator().next());
-                    }
+        InputImage image = InputImage.fromMediaImage(
+            imageProxy.getImage(),
+            imageProxy.getImageInfo().getRotationDegrees()
+        );
+
+        mlKitDetector.process(image)
+            .addOnSuccessListener(faces -> {
+                long dt = System.currentTimeMillis() - t0;
+                // ✅ FIX: Dùng generic List<FaceResult> thay vì raw type
+                List<FaceResult> results = new ArrayList<>();
+
+                for (Face face : faces) {
+                    Rect box = face.getBoundingBox();
+                    if (box == null) continue;
+
+                    // Normalize coordinates [0, 1]
+                    float left = Math.max(0f, (float) box.left / w);
+                    float top = Math.max(0f, (float) box.top / h);
+                    float right = Math.min(1f, (float) box.right / w);
+                    float bottom = Math.min(1f, (float) box.bottom / h);
+
+                    RectF normBox = new RectF(left, top, right, bottom);
+
+                    // Fallback trackingId nếu null
+                    Integer trackIdObj = face.getTrackingId();
+                    int trackId = trackIdObj != null ? trackIdObj : results.size();
+
+                    // Safe get probabilities (có thể null)
+                    Float smileObj = face.getSmilingProbability();
+                    Float leftEyeObj = face.getLeftEyeOpenProbability();
+                    Float rightEyeObj = face.getRightEyeOpenProbability();
+
+                    results.add(new FaceResult(
+                        trackId,
+                        normBox,
+                        face.getHeadEulerAngleY(),  // primitive float, luôn có giá trị
+                        face.getHeadEulerAngleZ(),
+                        smileObj != null ? smileObj : -1f,
+                        leftEyeObj != null ? leftEyeObj : -1f,
+                        rightEyeObj != null ? rightEyeObj : -1f
+                    ));
                 }
-                return temporaryIdMap.get(positionHash);
-            }
-            return Math.abs(face.hashCode() % 10000) + 10000;
-        }
-    }
 
-    public void shutdown() {
-        isReady.set(false);
-        isShutdown = true;
-        try {
-            faceDetector.close();
-        } catch (Exception e) {
-            Log.e(TAG, "Error closing detector", e);
-        }
-        synchronized (lock) {
-            temporaryIdMap.clear();
-        }
+                callback.onResult(new DetectionResult(results, dt, w, h));
+            })
+            .addOnFailureListener(e -> Log.e(TAG, "ML Kit detection failed", e))
+            .addOnCompleteListener(task -> imageProxy.close());
+    }
+    public void close() {
+        mlKitDetector.close();
     }
 }
