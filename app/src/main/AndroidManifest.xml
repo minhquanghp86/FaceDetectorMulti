@@ -34,6 +34,18 @@
                 android:value=".ui.MainActivity" />
         </activity>
 
+        <!-- Đăng ký RegistrationActivity -->
+<activity
+    android:name=".ui.RegistrationActivity"
+    android:label="👤 Đăng ký face"
+    android:parentActivityName=".ui.MainActivity"
+    android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
+    <meta-data
+        android:name="android.support.PARENT_ACTIVITY"
+        android:value=".ui.MainActivity" />
+</activity>
+
+
     </application>
 
 </manifest>
