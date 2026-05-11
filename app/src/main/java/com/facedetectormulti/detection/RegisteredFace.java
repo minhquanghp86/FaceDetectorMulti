@@ -4,8 +4,6 @@ import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 import androidx.room.TypeConverters;
 
-import java.util.Date;
-
 @Entity(tableName = "registered_faces")
 public class RegisteredFace {
     @PrimaryKey(autoGenerate = true)
@@ -18,18 +16,25 @@ public class RegisteredFace {
     @TypeConverters(FloatArrayConverter.class)
     public float[] embedding;
     
-    // Avatar thumbnail (base64 hoặc path)
+    // Avatar thumbnail (base64 string)
     public String avatarBase64;
     
-    public Date registeredAt;
+    // ✅ FIX: Dùng long timestamp thay vì Date (Room hỗ trợ native)
+    public long registeredAt;     // Timestamp: System.currentTimeMillis()
+    
     public int detectionCount;    // Số lần phát hiện (để thống kê)
 
     public RegisteredFace(String name, float[] embedding, String avatarBase64) {
         this.name = name;
         this.embedding = embedding;
         this.avatarBase64 = avatarBase64;
-        this.registeredAt = new Date();
+        this.registeredAt = System.currentTimeMillis();  // ✅ Dùng timestamp
         this.detectionCount = 0;
+    }
+    
+    // Helper: convert timestamp → Date khi cần hiển thị
+    public java.util.Date getRegisteredDate() {
+        return new java.util.Date(registeredAt);
     }
 
     // Helper: tính độ tương đồng cosine similarity
