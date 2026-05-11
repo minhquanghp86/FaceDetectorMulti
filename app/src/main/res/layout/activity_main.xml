@@ -6,44 +6,14 @@
     android:layout_height="match_parent"
     android:keepScreenOn="true">
 
-    <!-- Camera Preview -->
     <androidx.camera.view.PreviewView
-        android:id="@+id/previewView"
+        android:id="@+id/cameraPreview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Face Overlay -->
-    <com.example.facedetectormulti.ui.FaceOverlayView
-        android:id="@+id/overlayView"
+    <com.facedetectormulti.ui.FaceOverlayView
+        android:id="@+id/faceOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
-
-    <!-- HUD: Stats display -->
-    <TextView
-        android:id="@+id/hudTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="@dimen/button_margin"
-        android:background="#80000000"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="6dp"
-        android:textColor="@android:color/white"
-        android:textSize="@dimen/hud_text_size"
-        android:fontFamily="monospace"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-    <!-- Camera Switch Button -->
-    <ImageButton
-        android:id="@+id/switchCameraBtn"
-        android:layout_width="@dimen/button_size"
-        android:layout_height="@dimen/button_size"
-        android:layout_margin="@dimen/button_margin"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="@string/switch_camera"
-        android:src="@drawable/ic_camera_switch"
-        android:tint="@android:color/white"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
