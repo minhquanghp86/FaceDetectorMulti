@@ -14,13 +14,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Face Overlay (vẽ bounding boxes) -->
+    <!-- Face Overlay -->
     <com.facedetectormulti.ui.FaceOverlayView
         android:id="@+id/faceOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- HUD: Stats display (top-left) -->
+    <!-- HUD: Stats (top-left) -->
     <TextView
         android:id="@+id/hudTextView"
         android:layout_width="wrap_content"
@@ -49,7 +49,21 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Permission denied message (center, hidden by default) -->
+    <!-- ✅ NEW: Settings FAB (bottom-right) -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabSettings"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:contentDescription="Cài đặt"
+        android:src="@drawable/ic_settings"
+        app:backgroundTint="#1A1A1A"
+        app:tint="#00FF50"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:fabSize="mini" />
+
+    <!-- Permission denied message (center) -->
     <TextView
         android:id="@+id/permissionDeniedText"
         android:layout_width="wrap_content"
