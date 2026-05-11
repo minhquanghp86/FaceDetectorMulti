@@ -1,4 +1,4 @@
-package com.facedetectormulti.ui;  // ✅ Đúng package
+package com.facedetectormulti.ui;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -6,156 +6,147 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.util.TypedValue;
 import android.view.View;
 
 import androidx.annotation.Nullable;
-import androidx.camera.core.CameraSelector;
 
-// ✅ Import đúng package
-import com.facedetectormulti.detection.DetectionCallback;
+import com.facedetectormulti.detection.DetectionResult;
 import com.facedetectormulti.detection.FaceResult;
 
+import java.util.Collections;
+import java.util.List;  // ✅ Đã có import này
+
 public class FaceOverlayView extends View {
-    
-    // Dynamic UI values từ resources
-    private final float boxStrokeWidth;
-    private final float textSize;
-    private final int[] faceColors;
-    
-    // State
-    private final List<FaceResult> faces = new ArrayList<>();
-    private final Paint boxPaint = new Paint();
-    private final Paint textPaint = new Paint();
-    private final RectF boxRect = new RectF();
-    
-    private DetectionCallback callback;
-    private int currentLensFacing = CameraSelector.LENS_FACING_FRONT;
+
+    private static final int[] COLORS = {
+        Color.rgb(0, 255, 100),
+        Color.rgb(0, 200, 255),
+        Color.rgb(255, 120, 0),
+        Color.rgb(255, 60, 200),
+        Color.rgb(200, 255, 0),
+        Color.rgb(180, 100, 255),
+    };
+
+    private final Paint boxPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint labelBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint centerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint statsPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // ✅ FIX: Dùng generic List<FaceResult>
+    private List<FaceResult> faces = Collections.emptyList();
+    private long processingTimeMs = 0;
+    private boolean mirrorX = false;
 
     public FaceOverlayView(Context context) {
-        this(context, null);
+        super(context);
+        init();
     }
 
     public FaceOverlayView(Context context, @Nullable AttributeSet attrs) {
-        this(context, attrs, 0);
+        super(context, attrs);
+        init();
     }
-
-    public FaceOverlayView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-        super(context, attrs, defStyleAttr);
-        
-        // Load dynamic values từ theme/resources
-        TypedValue outValue = new TypedValue();        context.getTheme().resolveAttribute(android.R.attr.textColorPrimary, outValue, true);
-        
-        // Default values
-        boxStrokeWidth = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 3, 
-            getResources().getDisplayMetrics());
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 14, 
-            getResources().getDisplayMetrics());
-            
-        // Color array cho faces (dùng từ colors.xml)
-        faceColors = new int[] {
-            Color.parseColor("#FF4081"), // Pink
-            Color.parseColor("#3F51B5"), // Indigo  
-            Color.parseColor("#009688"), // Teal
-            Color.parseColor("#FF9800"), // Orange
-            Color.parseColor("#9C27B0")  // Purple
-        };
-        
-        initPaints();
-    }
-
-    private void initPaints() {
-        // Box paint
+    private void init() {
         boxPaint.setStyle(Paint.Style.STROKE);
-        boxPaint.setStrokeWidth(boxStrokeWidth);
-        boxPaint.setAntiAlias(true);
-        
-        // Text paint
-        textPaint.setStyle(Paint.Style.FILL);
-        textPaint.setTextSize(textSize);
-        textPaint.setAntiAlias(true);
+        boxPaint.setStrokeWidth(3f);
+        labelBgPaint.setStyle(Paint.Style.FILL);
+        labelBgPaint.setColor(Color.argb(200, 0, 0, 0)); // semi-transparent black
+        textPaint.setTextSize(32f);
         textPaint.setColor(Color.WHITE);
-        textPaint.setShadowLayer(2f, 1f, 1f, Color.BLACK);
+        textPaint.setFakeBoldText(true);
+        centerPaint.setStyle(Paint.Style.FILL);
+        statsPaint.setTextSize(36f);
+        statsPaint.setColor(Color.WHITE);
+        statsPaint.setFakeBoldText(true);
+        statsPaint.setShadowLayer(4f, 0, 0, Color.BLACK);
     }
 
-    /**
-     * Set camera facing để xử lý mirror cho front camera
-     */
-    public void setLensFacing(int lensFacing) {
-        this.currentLensFacing = lensFacing;
-        invalidate();
+    public void update(DetectionResult result) {
+        this.faces = result != null && result.faces != null
+            ? result.faces : Collections.emptyList();
+        this.processingTimeMs = result != null ? result.processingMs : 0;
+        postInvalidate(); // thread-safe invalidate
     }
 
-    public void setResults(List<FaceResult> newFaces) {
-        synchronized (faces) {
-            faces.clear();
-            if (newFaces != null) {
-                faces.addAll(newFaces);
-            }
-        }
-        invalidate();    }
+    public void clear() {
+        this.faces = Collections.emptyList();
+        postInvalidate();
+    }
 
-    public void setDetectionCallback(DetectionCallback callback) {
-        this.callback = callback;
+    public void setMirrorX(boolean mirror) {
+        this.mirrorX = mirror;
+        postInvalidate();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        
-        if (faces.isEmpty()) return;
-        
-        synchronized (faces) {
-            for (FaceResult face : faces) {
-                drawFace(canvas, face);
+        if (faces.isEmpty()) {
+            drawStats(canvas, 0);
+            return;
+        }
+
+        float vw = getWidth();
+        float vh = getHeight();
+
+        for (FaceResult face : faces) {
+            int color = COLORS[Math.abs(face.trackingId) % COLORS.length];
+            boxPaint.setColor(color);
+            centerPaint.setColor(color);
+
+            float left = face.boxNorm.left * vw;
+            float top = face.boxNorm.top * vh;            float right = face.boxNorm.right * vw;
+            float bottom = face.boxNorm.bottom * vh;
+
+            // Mirror cho front camera
+            if (mirrorX) {
+                float tmp = left;
+                left = vw - right;
+                right = vw - tmp;
             }
+
+            RectF rect = new RectF(left, top, right, bottom);
+            canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
+
+            // Vẽ center point + crosshair
+            float cx = (left + right) / 2f;
+            float cy = (top + bottom) / 2f;
+            canvas.drawCircle(cx, cy, 8f, centerPaint);
+            canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
+            canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
+
+            // Vẽ label
+            String label = buildLabel(face);
+            float textW = textPaint.measureText(label);
+            float labelH = 44f;
+            float lx = left;
+            float ly = top - labelH;
+            if (ly < 0) ly = bottom;
+
+            canvas.drawRoundRect(
+                new RectF(lx, ly, lx + textW + 16f, ly + labelH),
+                8f, 8f, labelBgPaint
+            );
+            canvas.drawText(label, lx + 8f, ly + labelH - 10f, textPaint);
         }
+
+        drawStats(canvas, faces.size());
     }
 
-    private void drawFace(Canvas canvas, FaceResult face) {
-        // Convert normalized coordinates [0,1] sang pixel
-        float left = face.boxNorm[0] * getWidth();
-        float top = face.boxNorm[1] * getHeight();
-        float right = face.boxNorm[2] * getWidth();
-        float bottom = face.boxNorm[3] * getHeight();
-        
-        // Mirror handling cho front camera
-        if (currentLensFacing == CameraSelector.LENS_FACING_FRONT) {
-            float tempLeft = left;
-            left = getWidth() - right;
-            right = getWidth() - tempLeft;
+    private String buildLabel(FaceResult face) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("#").append(face.trackingId);
+        if (face.smileProbability >= 0) {
+            sb.append(" ").append((int)(face.smileProbability * 100)).append("%");
         }
-        
-        boxRect.set(left, top, right, bottom);
-        
-        // Chọn màu theo trackingId
-        int colorIndex = Math.abs(face.trackingId) % faceColors.length;
-        boxPaint.setColor(faceColors[colorIndex]);
-        
-        // Vẽ bounding box
-        canvas.drawRect(boxRect, boxPaint);
-        
-        // Vẽ label với thông tin face
-        String label = String.format("#%d", face.trackingId);
-        if (face.smilingProbability >= 0) {
-            label += String.format(" 😊%.0f%%", face.smilingProbability * 100);
+        if (Math.abs(face.eulerY) > 20f) {
+            sb.append(face.eulerY > 0 ? " ◀" : " ▶");
         }
-        if (Math.abs(face.eulerY) > 15) {
-            label += String.format(" ↕%.0f°", face.eulerY);
-        }        
-        // Vẽ text background cho dễ đọc
-        float textWidth = textPaint.measureText(label);
-        float textHeight = textPaint.getTextSize();
-        canvas.drawRect(left, top - textHeight - 8, 
-                       left + textWidth + 16, top, boxPaint);
-        
-        // Vẽ text
-        canvas.drawText(label, left + 8, top - 4, textPaint);
+        return sb.toString();
     }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-        super.onSizeChanged(w, h, oldw, oldh);
-        // Không cần làm gì thêm, coordinates được tính realtime trong onDraw
+    private void drawStats(Canvas canvas, int count) {
+        String text = "Faces: " + count + " | " + processingTimeMs + "ms";
+        canvas.drawText(text, 20f, 50f, statsPaint);
     }
 }
