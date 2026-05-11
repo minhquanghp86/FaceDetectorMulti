@@ -1,5 +1,4 @@
-package com.minhquanghp86.faceservotracker.detection;
-// ✅ Dòng 1: đổi package
+
 package com.facedetectormulti.ui;
 
 import android.content.Context;
