@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permissions: giữ nguyên, chỉ xóa dòng CAMERA trùng -->
+    <!-- Permissions: chỉ khai báo 1 lần mỗi loại -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
 
@@ -16,7 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.NoActionBar">
 
-        <!-- MainActivity: giữ nguyên landscape + icon custom -->
+        <!-- MainActivity: landscape + custom icon -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -38,7 +38,7 @@
                 android:value=".ui.MainActivity" />
         </activity>
 
-        <!-- RegistrationActivity: giữ nguyên, chỉ xóa block trùng phía dưới -->
+        <!-- RegistrationActivity: giữ nguyên đầy đủ theme + metadata (chỉ 1 block) -->
         <activity
             android:name=".ui.RegistrationActivity"
             android:label="👤 Đăng ký face"
