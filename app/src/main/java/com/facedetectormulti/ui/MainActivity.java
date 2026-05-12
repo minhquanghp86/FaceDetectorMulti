@@ -123,28 +123,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         registerBtn.setOnClickListener(v -> {
-            if (lastDetectedFaces.isEmpty()) {
-                Toast.makeText(this, "⚠ Chưa phát hiện khuôn mặt nào", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            
-            FaceResult largestFace = null;
-            float maxArea = 0f;
-            for (FaceResult face : lastDetectedFaces) {
-                float area = face.width() * face.height();
-                if (area > maxArea) {
-                    maxArea = area;
-                    largestFace = face;
-                }
-            }
-            
-            if (largestFace != null) {
-                Toast.makeText(this, "📸 Đang chuẩn bị đăng ký...", Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(MainActivity.this, RegistrationActivity.class);
-                startActivityForResult(intent, REQUEST_CODE_REGISTRATION);
-            } else {
-                Toast.makeText(this, "⚠ Không tìm thấy khuôn mặt hợp lệ", Toast.LENGTH_SHORT).show();
-            }
+        // ✅ Luôn cho phép vào đăng ký, không cần kiểm tra face
+            Intent intent = new Intent(MainActivity.this, RegistrationActivity.class);
+            startActivityForResult(intent, REQUEST_CODE_REGISTRATION);
         });
 
         if (manageFacesBtn != null) {
