@@ -172,5 +172,17 @@
             android:backgroundTint="#00FF50"
             android:textColor="#1A1A1A"/>
     </LinearLayout>
-
+    <!-- Thêm ngay TRƯỚC dòng </LinearLayout> cuối cùng -->
+    <TextView
+        android:id="@+id/tvDebugLog"
+        android:layout_width="match_parent"
+        android:layout_height="100dp"
+        android:background="#33000000"
+        android:textColor="#00FF00"
+        android:textSize="10sp"
+        android:typeface="monospace"
+        android:padding="4dp"
+        android:scrollbars="vertical"
+        android:gravity="bottom"
+        android:text="Debug log..."/>
 </LinearLayout>
