@@ -110,9 +110,8 @@ public class RegistrationActivity extends AppCompatActivity {
     private void addLog(String msg) {
         Log.d(TAG, msg);
         logBuilder.append(msg).append("\n");
-        if (logBuilder.length() > 10000) {
-            int cut = logBuilder.indexOf("\n", logBuilder.length() - 8000);
-            if (cut > 0) logBuilder.delete(0, cut);
+        if (logBuilder.length() > 5000) {
+            logBuilder.delete(0, logBuilder.length() - 4000);
         }
         runOnUiThread(() -> {
             if (tvDebugLog != null) {
@@ -126,10 +125,10 @@ public class RegistrationActivity extends AppCompatActivity {
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-            .setMinFaceSize(0.1f)
+            .setMinFaceSize(0.15f)
             .build();
         faceDetector = FaceDetection.getClient(options);
-        addLog("✅ FaceDetector initialized");
+        addLog("✅ FaceDetector ready");
     }
 
     private void initCameraExecutor() {
@@ -142,75 +141,50 @@ public class RegistrationActivity extends AppCompatActivity {
         }
         
         btnCapture.setOnClickListener(v -> {
-            addLog("📸 Capture button clicked");
+            addLog("📸 Capture clicked");
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
                     == PackageManager.PERMISSION_GRANTED) {
                 captureFromCamera();
             } else {
-                addLog("❌ No camera permission");
                 ActivityCompat.requestPermissions(this, 
                     new String[]{Manifest.permission.CAMERA}, REQUEST_CAMERA_PERMISSION);
             }
         });
 
-        btnGallery.setOnClickListener(v -> {
-            addLog("🖼️ Gallery button clicked");
-            pickImageFromGallery();
-        });
-        
-        btnSave.setOnClickListener(v -> {
-            addLog("💾 Save button clicked");
-            saveRegistration();
-        });
-        
-        btnCancel.setOnClickListener(v -> {
-            addLog("✖ Cancel button clicked");
-            finish();
-        });
+        btnGallery.setOnClickListener(v -> pickImageFromGallery());
+        btnSave.setOnClickListener(v -> saveRegistration());
+        btnCancel.setOnClickListener(v -> finish());
     }
 
     private void switchCamera() {
         isFrontCamera = !isFrontCamera;
         currentCamera = isFrontCamera ? CameraSelector.DEFAULT_FRONT_CAMERA : CameraSelector.DEFAULT_BACK_CAMERA;
-        addLog("📷 Switch to " + (isFrontCamera ? "FRONT" : "BACK") + " camera");
         Toast.makeText(this, isFrontCamera ? "📷 Camera trước" : "📷 Camera sau", Toast.LENGTH_SHORT).show();
-        
-        if (cameraProvider != null) {
-            cameraProvider.unbindAll();
-        }
+        if (cameraProvider != null) cameraProvider.unbindAll();
         startCameraPreview();
     }
 
     private void startCameraPreview() {
-        addLog("🎥 Starting camera preview...");
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
         future.addListener(() -> {
             try {
                 cameraProvider = future.get();
                 bindCameraUseCases();
-                addLog("✅ Camera preview started");
             } catch (ExecutionException | InterruptedException e) {
-                addLog("❌ Camera init failed: " + e.getMessage());
-                Log.e(TAG, "Camera init failed", e);
+                addLog("❌ Camera error: " + e.getMessage());
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
     private void bindCameraUseCases() {
-        if (cameraProvider == null) {
-            addLog("❌ cameraProvider is null");
-            return;
-        }
+        if (cameraProvider == null) return;
         cameraProvider.unbindAll();
         
-        Preview preview = new Preview.Builder()
-            .setTargetRotation(cameraPreview.getDisplay().getRotation())
-            .build();
+        Preview preview = new Preview.Builder().build();
         preview.setSurfaceProvider(cameraPreview.getSurfaceProvider());
         
         ImageAnalysis imageAnalysis = new ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setTargetRotation(cameraPreview.getDisplay().getRotation())
             .build();
         
         imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
@@ -221,41 +195,27 @@ public class RegistrationActivity extends AppCompatActivity {
                     matrix.preScale(-1f, 1f);
                     Bitmap mirrored = Bitmap.createBitmap(bitmap, 0, 0, 
                         bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-                    if (latestFrame != null && !latestFrame.isRecycled()) {
-                        latestFrame.recycle();
-                    }
+                    if (latestFrame != null && !latestFrame.isRecycled()) latestFrame.recycle();
                     latestFrame = mirrored;
                     bitmap.recycle();
                 } else {
-                    if (latestFrame != null && !latestFrame.isRecycled()) {
-                        latestFrame.recycle();
-                    }
+                    if (latestFrame != null && !latestFrame.isRecycled()) latestFrame.recycle();
                     latestFrame = bitmap;
                 }
             }
             imageProxy.close();
         });
         
-        try {
-            cameraProvider.bindToLifecycle(this, currentCamera, preview, imageAnalysis);
-        } catch (Exception e) {
-            addLog("❌ Bind failed: " + e.getMessage());
-        }
+        cameraProvider.bindToLifecycle(this, currentCamera, preview, imageAnalysis);
     }
 
     private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
         try {
             android.media.Image image = imageProxy.getImage();
             if (image == null) return null;
-            
-            int w = imageProxy.getWidth();
-            int h = imageProxy.getHeight();
-            
+            int w = imageProxy.getWidth(), h = imageProxy.getHeight();
             android.media.Image.Plane[] planes = image.getPlanes();
-            if (planes.length < 3) {
-                image.close();
-                return null;
-            }
+            if (planes.length < 3) { image.close(); return null; }
             
             ByteBuffer yBuf = planes[0].getBuffer();
             ByteBuffer uBuf = planes[1].getBuffer();
@@ -266,7 +226,6 @@ public class RegistrationActivity extends AppCompatActivity {
             int vSize = vBuf.remaining();
             
             byte[] nv21 = new byte[ySize + uSize + vSize];
-            
             yBuf.get(nv21, 0, ySize);
             vBuf.get(nv21, ySize, vSize);
             uBuf.get(nv21, ySize + vSize, uSize);
@@ -274,31 +233,26 @@ public class RegistrationActivity extends AppCompatActivity {
             android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
                 nv21, android.graphics.ImageFormat.NV21, w, h, null);
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, w, h), 95, out);
+            yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, w, h), 90, out);
             byte[] jpegBytes = out.toByteArray();
             
             Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
             image.close();
             return bitmap;
         } catch (Exception e) {
-            Log.e(TAG, "imageProxyToBitmap failed: " + e.getMessage(), e);
             return null;
         }
     }
 
     private void captureFromCamera() {
-        addLog("📸 captureFromCamera called");
-        
-        // ✅ Đợi 500ms để đảm bảo latestFrame đã sẵn sàng
+        // ✅ Đợi 500ms cho ảnh sẵn sàng
         cameraPreview.postDelayed(() -> {
             if (latestFrame == null || latestFrame.isRecycled()) {
-                addLog("❌ latestFrame is NULL or recycled!");
+                addLog("❌ latestFrame not ready");
                 Toast.makeText(this, "⚠ Chưa có khung hình, thử lại", Toast.LENGTH_SHORT).show();
                 return;
             }
-            
-            addLog("✅ latestFrame: " + latestFrame.getWidth() + "x" + latestFrame.getHeight());
-            addLog("   isRecycled: " + latestFrame.isRecycled());
+            addLog("📸 latestFrame: " + latestFrame.getWidth() + "x" + latestFrame.getHeight());
             detectAndCropFace(latestFrame);
         }, 500);
     }
@@ -311,133 +265,123 @@ public class RegistrationActivity extends AppCompatActivity {
 
     private void detectAndCropFace(Bitmap source) {
         if (source == null || source.isRecycled()) {
-            addLog("❌ detectAndCropFace: source is null or recycled");
+            addLog("❌ source is null/recycled");
             Toast.makeText(this, "⚠ Ảnh không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        addLog("🔍 detectAndCropFace: source=" + source.getWidth() + "x" + source.getHeight());
-        
+        addLog("🔍 detectAndCropFace: " + source.getWidth() + "x" + source.getHeight());
         btnCapture.setEnabled(false);
         btnCapture.setText("⏳ Đang xử lý...");
         
-        // Resize nếu ảnh quá lớn
+        // ✅ Resize về kích thước vừa phải để ML Kit detect nhanh
         final Bitmap processed;
-        int maxDim = 1024;
+        int maxDim = 640;
         if (source.getWidth() > maxDim || source.getHeight() > maxDim) {
             float scale = Math.min((float) maxDim / source.getWidth(), (float) maxDim / source.getHeight());
             processed = Bitmap.createScaledBitmap(source, 
                 (int)(source.getWidth() * scale), (int)(source.getHeight() * scale), true);
-            addLog("📐 Resized to " + processed.getWidth() + "x" + processed.getHeight());
         } else {
             processed = source;
         }
         
-        InputImage image = InputImage.fromBitmap(processed, 0);
-        addLog("🚀 Calling ML Kit process...");
+        // ✅ Tạo bản copy an toàn để fallback
+        final Bitmap fallbackCopy;
+        try {
+            fallbackCopy = processed.copy(Bitmap.Config.ARGB_8888, true);
+        } catch (Exception e) {
+            addLog("❌ Copy failed: " + e.getMessage());
+            btnCapture.setEnabled(true);
+            btnCapture.setText("📸 Chụp ảnh");
+            return;
+        }
         
-        final Bitmap original = source;
+        InputImage image = InputImage.fromBitmap(processed, 0);
+        addLog("🚀 Calling ML Kit...");
         
         faceDetector.process(image)
             .addOnSuccessListener(faces -> {
-                addLog("=== ML Kit SUCCESS ===");
-                addLog("Faces found: " + faces.size());
-                
+                addLog("✅ ML Kit done, faces: " + faces.size());
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
                 
                 if (faces.isEmpty()) {
-                    addLog("❌ No faces detected by ML Kit");
-                    // ✅ Hiển thị dialog hỏi người dùng
-                    runOnUiThread(() -> showNoFaceDialog(original));
+                    addLog("❌ No face detected");
+                    showNoFaceDialog(fallbackCopy);
                     return;
                 }
                 
                 // Tìm face lớn nhất
-                Face bestFace = faces.get(0);
+                Face best = faces.get(0);
                 for (Face f : faces) {
                     if (f.getBoundingBox().width() * f.getBoundingBox().height() 
-                        > bestFace.getBoundingBox().width() * bestFace.getBoundingBox().height()) {
-                        bestFace = f;
+                        > best.getBoundingBox().width() * best.getBoundingBox().height()) {
+                        best = f;
                     }
                 }
                 
-                Rect box = bestFace.getBoundingBox();
-                addLog("📦 Face box: " + box.flattenToString());
-                addLog("📦 Face size: " + box.width() + "x" + box.height());
-                
-                int marginW = (int)(box.width() * 0.3f);
-                int marginH = (int)(box.height() * 0.3f);
-                
-                int left = Math.max(0, box.left - marginW);
-                int top = Math.max(0, box.top - marginH);
-                int right = Math.min(processed.getWidth(), box.right + marginW);
-                int bottom = Math.min(processed.getHeight(), box.bottom + marginH);
+                Rect box = best.getBoundingBox();
+                int mw = (int)(box.width() * 0.25f);
+                int mh = (int)(box.height() * 0.25f);
+                int l = Math.max(0, box.left - mw);
+                int t = Math.max(0, box.top - mh);
+                int r = Math.min(processed.getWidth(), box.right + mw);
+                int b = Math.min(processed.getHeight(), box.bottom + mh);
                 
                 try {
-                    Bitmap cropped = Bitmap.createBitmap(processed, left, top, right - left, bottom - top);
+                    Bitmap cropped = Bitmap.createBitmap(processed, l, t, r - l, b - t);
                     addLog("✅ Cropped: " + cropped.getWidth() + "x" + cropped.getHeight());
                     setCapturedFace(cropped);
                     Toast.makeText(this, "✅ Đã crop khuôn mặt", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     addLog("❌ Crop error: " + e.getMessage());
-                    runOnUiThread(() -> showNoFaceDialog(original));
+                    showNoFaceDialog(fallbackCopy);
                 }
             })
             .addOnFailureListener(e -> {
-                addLog("=== ML Kit FAILED ===");
-                addLog("❌ Error: " + e.getMessage());
-                
+                addLog("❌ ML Kit failed: " + e.getMessage());
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
-                runOnUiThread(() -> showNoFaceDialog(original));
+                showNoFaceDialog(fallbackCopy);
             });
     }
     
-    private void showNoFaceDialog(Bitmap original) {
-        addLog("💬 Showing no-face dialog");
-        try {
-            new AlertDialog.Builder(this)
-                .setTitle("Không tìm thấy khuôn mặt")
-                .setMessage("Không phát hiện được khuôn mặt trong ảnh.\nDùng toàn bộ ảnh để đăng ký?")
-                .setPositiveButton("Dùng ảnh này", (d, w) -> {
-                    addLog("👤 User chose to use full image");
-                    // ✅ Tạo bản copy an toàn
-                    Bitmap copy = null;
-                    try {
-                        if (original != null && !original.isRecycled()) {
-                            copy = original.copy(Bitmap.Config.ARGB_8888, true);
-                        }
-                    } catch (Exception e) {
-                        addLog("❌ Failed to copy bitmap: " + e.getMessage());
-                    }
-                    
+    private void showNoFaceDialog(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            addLog("❌ showNoFaceDialog: bitmap invalid");
+            Toast.makeText(this, "❌ Không có ảnh để dùng", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        addLog("💬 No face dialog");
+        new AlertDialog.Builder(this)
+            .setTitle("Không tìm thấy khuôn mặt")
+            .setMessage("ML Kit không phát hiện được khuôn mặt.\nDùng toàn bộ ảnh?")
+            .setPositiveButton("Dùng ảnh này", (d, w) -> {
+                try {
+                    Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, true);
                     if (copy != null) {
                         setCapturedFace(copy);
                     } else {
                         Toast.makeText(this, "❌ Lỗi xử lý ảnh", Toast.LENGTH_SHORT).show();
                     }
-                })
-                .setNegativeButton("Thử lại", null)
-                .show();
-        } catch (Exception e) {
-            addLog("❌ Dialog error: " + e.getMessage());
-            Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
+                } catch (Exception e) {
+                    addLog("❌ Dialog copy error: " + e.getMessage());
+                    Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            })
+            .setNegativeButton("Thử lại", null)
+            .show();
     }
 
     private void setCapturedFace(Bitmap face) {
-        addLog("✅ setCapturedFace: " + (face != null ? face.getWidth() + "x" + face.getHeight() : "NULL"));
-        
         if (capturedFace != null && !capturedFace.isRecycled() && capturedFace != face) {
             capturedFace.recycle();
         }
         this.capturedFace = face;
-        
         ivPreview.setImageBitmap(face);
         cameraPreview.setVisibility(View.GONE);
         ivPreview.setVisibility(View.VISIBLE);
-        
         btnCapture.setEnabled(false);
         btnCapture.setText("✅ Đã chụp");
         btnGallery.setEnabled(false);
@@ -446,13 +390,10 @@ public class RegistrationActivity extends AppCompatActivity {
 
     private void saveRegistration() {
         String name = etName.getText().toString().trim();
-        addLog("💾 saveRegistration: name=" + name);
-        
         if (name.isEmpty()) {
             Toast.makeText(this, "⚠ Vui lòng nhập tên", Toast.LENGTH_SHORT).show();
             return;
         }
-        
         if (capturedFace == null || capturedFace.isRecycled()) {
             Toast.makeText(this, "⚠ Vui lòng chụp hoặc chọn ảnh", Toast.LENGTH_SHORT).show();
             return;
@@ -463,44 +404,31 @@ public class RegistrationActivity extends AppCompatActivity {
         
         new Thread(() -> {
             try {
-                addLog("🔄 Extracting embedding...");
                 float[] embedding = FaceEmbeddingExtractor.extract(capturedFace);
-                addLog("✅ Embedding size: " + embedding.length);
-                
                 String avatarBase64 = FaceEmbeddingExtractor.toBase64(capturedFace);
-                
                 RegisteredFace newFace = new RegisteredFace(name, embedding, avatarBase64);
                 newFace.description = etDescription.getText().toString().trim();
                 
                 FaceDao dao = FaceDatabase.getInstance(this).faceDao();
-                
-                // Xóa face cũ nếu trùng tên
                 List<RegisteredFace> existing = dao.getAllFaces();
                 for (RegisteredFace f : existing) {
-                    if (f.name.equalsIgnoreCase(name)) {
-                        dao.delete(f);
-                        addLog("🗑️ Deleted existing: " + name);
-                    }
+                    if (f.name.equalsIgnoreCase(name)) dao.delete(f);
                 }
                 
                 long id = dao.insert(newFace);
-                addLog("✅ Saved to DB, id=" + id);
                 
                 runOnUiThread(() -> {
                     btnSave.setEnabled(true);
                     btnSave.setText("💾 Lưu");
-                    
                     if (id > 0) {
                         Toast.makeText(this, "✓ Đã đăng ký: " + name, Toast.LENGTH_SHORT).show();
                         setResult(RESULT_OK);
                         finish();
                     } else {
-                        Toast.makeText(this, "❌ Lỗi lưu dữ liệu", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "❌ Lỗi lưu", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
-                addLog("❌ Save error: " + e.getMessage());
-                Log.e(TAG, "Save error", e);
                 runOnUiThread(() -> {
                     btnSave.setEnabled(true);
                     btnSave.setText("💾 Lưu");
@@ -513,13 +441,9 @@ public class RegistrationActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
-        addLog("📥 onActivityResult: request=" + requestCode + ", result=" + resultCode);
-        
         if (resultCode == RESULT_OK && data != null && requestCode == REQUEST_PICK_IMAGE) {
             Uri uri = data.getData();
             if (uri != null) {
-                addLog("🖼️ Gallery URI: " + uri.toString());
                 new Thread(() -> {
                     try {
                         BitmapFactory.Options opts = new BitmapFactory.Options();
@@ -528,25 +452,19 @@ public class RegistrationActivity extends AppCompatActivity {
                         BitmapFactory.decodeStream(is, null, opts);
                         is.close();
                         
-                        addLog("📐 Original size: " + opts.outWidth + "x" + opts.outHeight);
-                        
-                        opts.inSampleSize = calculateInSampleSize(opts, 1024, 1024);
+                        opts.inSampleSize = calculateInSampleSize(opts, 640, 640);
                         opts.inJustDecodeBounds = false;
                         
                         is = getContentResolver().openInputStream(uri);
                         final Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
                         is.close();
                         
-                        if (bitmap != null) {
-                            addLog("✅ Gallery bitmap: " + bitmap.getWidth() + "x" + bitmap.getHeight());
-                            runOnUiThread(() -> detectAndCropFace(bitmap));
-                        } else {
-                            addLog("❌ Bitmap is null!");
-                            runOnUiThread(() -> Toast.makeText(this, "❌ Không thể đọc ảnh", Toast.LENGTH_SHORT).show());
-                        }
+                        runOnUiThread(() -> {
+                            if (bitmap != null) detectAndCropFace(bitmap);
+                            else Toast.makeText(this, "❌ Không đọc được ảnh", Toast.LENGTH_SHORT).show();
+                        });
                     } catch (Exception e) {
-                        addLog("❌ Gallery error: " + e.getMessage());
-                        runOnUiThread(() -> Toast.makeText(this, "❌ Lỗi đọc ảnh", Toast.LENGTH_SHORT).show());
+                        runOnUiThread(() -> Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                     }
                 }).start();
             }
@@ -571,23 +489,18 @@ public class RegistrationActivity extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
                                           @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        addLog("🔑 Permission result: " + requestCode);
         if (requestCode == REQUEST_CAMERA_PERMISSION && grantResults.length > 0 
             && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            addLog("✅ Camera permission granted");
             captureFromCamera();
-        } else {
-            addLog("❌ Camera permission denied");
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        addLog("💀 onDestroy");
         if (capturedFace != null && !capturedFace.isRecycled()) capturedFace.recycle();
         if (latestFrame != null && !latestFrame.isRecycled()) latestFrame.recycle();
-        if (faceDetector != null) faceDetector.close();
-        if (cameraExecutor != null && !cameraExecutor.isShutdown()) cameraExecutor.shutdown();
+        faceDetector.close();
+        cameraExecutor.shutdown();
     }
 }
