@@ -31,6 +31,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.facedetectormulti.R;
+import android.graphics.YuvImage;
 import com.facedetectormulti.detection.FaceDao;
 import com.facedetectormulti.detection.FaceDatabase;
 import com.facedetectormulti.detection.FaceEmbeddingExtractor;
@@ -192,10 +193,9 @@ public class RegistrationActivity extends AppCompatActivity {
             .build();
         
         imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
-            // Lưu frame mới nhất
-            Bitmap bitmap = imageProxyToBitmap(imageProxy);
+            // ✅ Sửa: chuyển đúng sang ảnh màu
+            Bitmap bitmap = imageProxyToColorBitmap(imageProxy);
             if (bitmap != null) {
-                // ✅ Nếu là camera trước, lật ảnh
                 if (isFrontCamera) {
                     Matrix matrix = new Matrix();
                     matrix.preScale(-1f, 1f);
@@ -224,6 +224,56 @@ public class RegistrationActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Chuyển ImageProxy thành Bitmap màu (YUV → RGB)
+     */
+    private Bitmap imageProxyToColorBitmap(ImageProxy imageProxy) {
+        try {
+            android.media.Image image = imageProxy.getImage();
+            if (image == null) return null;
+        
+            int w = imageProxy.getWidth();
+            int h = imageProxy.getHeight();
+        
+            // Dùng YuvImage để chuyển đúng
+            android.media.Image.Plane[] planes = image.getPlanes();
+            if (planes.length < 3) {
+                // Fallback: ảnh grayscale
+                return imageProxyToBitmap(imageProxy);
+            }
+        
+            java.nio.ByteBuffer yBuffer = planes[0].getBuffer();
+            java.nio.ByteBuffer uBuffer = planes[1].getBuffer();
+            java.nio.ByteBuffer vBuffer = planes[2].getBuffer();
+        
+            int ySize = yBuffer.remaining();
+            int uSize = uBuffer.remaining();
+            int vSize = vBuffer.remaining();
+        
+            byte[] nv21 = new byte[ySize + uSize + vSize];
+        
+            // Copy Y
+            yBuffer.get(nv21, 0, ySize);
+            // Copy V
+            vBuffer.get(nv21, ySize, vSize);
+            // Copy U
+            uBuffer.get(nv21, ySize + vSize, uSize);
+        
+            YuvImage yuvImage = new YuvImage(nv21, android.graphics.ImageFormat.NV21, w, h, null);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, w, h), 90, out);
+            byte[] imageBytes = out.toByteArray();
+        
+            Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+            image.close();
+            return bitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "Color conversion failed: " + e.getMessage(), e);
+            return imageProxyToBitmap(imageProxy);
+        }
+    }
+
+            
     private void captureFromCamera() {
         if (latestFrame == null || latestFrame.isRecycled()) {
             Toast.makeText(this, "⚠ Chưa có khung hình, thử lại sau", Toast.LENGTH_SHORT).show();
