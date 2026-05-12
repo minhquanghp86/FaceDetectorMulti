@@ -295,22 +295,40 @@ public class RegistrationActivity extends AppCompatActivity {
             Toast.makeText(this, "⚠ Ảnh không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+    
         btnCapture.setEnabled(false);
         btnCapture.setText("⏳ Đang xử lý...");
-        
-        InputImage image = InputImage.fromBitmap(bitmap, 0);
-        
+    
+        // ✅ Resize ảnh lớn để tránh crash
+        Bitmap resized = bitmap;
+        int maxSize = 1024;
+        if (bitmap.getWidth() > maxSize || bitmap.getHeight() > maxSize) {
+            float scale = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
+            int newW = (int) (bitmap.getWidth() * scale);
+            int newH = (int) (bitmap.getHeight() * scale);
+            resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+        }
+    
+        InputImage image = InputImage.fromBitmap(resized, 0);
+    
         faceDetector.process(image)
             .addOnSuccessListener(faces -> {
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
-                
+            
                 if (faces.isEmpty()) {
-                    Toast.makeText(this, "❌ Không tìm thấy khuôn mặt trong ảnh", Toast.LENGTH_SHORT).show();
+                    // ✅ Fallback: nếu ML Kit không tìm thấy, dùng cả ảnh
+                    new AlertDialog.Builder(this)
+                        .setTitle("Không tìm thấy khuôn mặt")
+                        .setMessage("ML Kit không phát hiện được khuôn mặt. Bạn có muốn dùng toàn bộ ảnh không?")
+                        .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
+                            setCapturedFace(resized != bitmap ? resized : bitmap.copy(Bitmap.Config.ARGB_8888, true));
+                        })
+                        .setNegativeButton("Thử lại", null)
+                        .show();
                     return;
                 }
-                
+            
                 // Lấy face lớn nhất
                 Face largestFace = faces.get(0);
                 for (Face face : faces) {
@@ -319,38 +337,38 @@ public class RegistrationActivity extends AppCompatActivity {
                         largestFace = face;
                     }
                 }
-                
-                // Crop face với margin
+            
                 Rect box = largestFace.getBoundingBox();
                 int margin = (int)(Math.min(box.width(), box.height()) * 0.3f);
-                
+            
                 int left = Math.max(0, box.left - margin);
                 int top = Math.max(0, box.top - margin);
-                int right = Math.min(bitmap.getWidth(), box.right + margin);
-                int bottom = Math.min(bitmap.getHeight(), box.bottom + margin);
-                
-                int cropW = right - left;
-                int cropH = bottom - top;
-                
-                if (cropW <= 0 || cropH <= 0) {
-                    Toast.makeText(this, "❌ Không thể crop ảnh", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                
+                int right = Math.min(resized.getWidth(), box.right + margin);
+                int bottom = Math.min(resized.getHeight(), box.bottom + margin);
+            
                 try {
-                    Bitmap cropped = Bitmap.createBitmap(bitmap, left, top, cropW, cropH);
+                    Bitmap cropped = Bitmap.createBitmap(resized, left, top, right - left, bottom - top);
                     setCapturedFace(cropped);
                     Toast.makeText(this, "✅ Đã phát hiện và crop khuôn mặt", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     Log.e(TAG, "Crop failed: " + e.getMessage());
-                    Toast.makeText(this, "❌ Lỗi crop ảnh", Toast.LENGTH_SHORT).show();
+                    setCapturedFace(resized.copy(Bitmap.Config.ARGB_8888, true));
                 }
             })
             .addOnFailureListener(e -> {
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
-                Log.e(TAG, "Face detection failed", e);
-                Toast.makeText(this, "❌ Lỗi phát hiện face: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Face detection failed: " + e.getMessage(), e);
+            
+                // ✅ Fallback khi ML Kit lỗi
+                new AlertDialog.Builder(this)
+                    .setTitle("Lỗi phát hiện")
+                    .setMessage("Không thể phát hiện khuôn mặt. Dùng toàn bộ ảnh?")
+                    .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
+                        setCapturedFace(bitmap.copy(Bitmap.Config.ARGB_8888, true));
+                    })
+                    .setNegativeButton("Hủy", null)
+                    .show();
             });
     }
 
