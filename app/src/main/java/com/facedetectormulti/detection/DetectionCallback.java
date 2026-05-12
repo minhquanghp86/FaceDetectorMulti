@@ -20,5 +20,8 @@ public interface DetectionCallback {
      * Called when detection fails
      * @param error thông báo lỗi
      */
-    void onError(String error);
+    default void onError(String error) {
+        // Default implementation - có thể override nếu cần
+        // Không làm gì cả, chỉ để interface vẫn là functional interface
+    }
 }
