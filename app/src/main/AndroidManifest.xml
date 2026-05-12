@@ -27,23 +27,21 @@
             </intent-filter>
         </activity>
         
-        <!-- SettingsActivity: giữ nguyên theme + metadata -->
         <activity
             android:name=".ui.SettingsActivity"
             android:label="⚙ Cài đặt"
             android:parentActivityName=".ui.MainActivity"
-            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
+            android:theme="@style/Theme.FaceDetectorMulti.Dark">   <!-- ✅ Dùng theme dark -->
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".ui.MainActivity" />
         </activity>
 
-        <!-- RegistrationActivity: giữ nguyên đầy đủ theme + metadata (chỉ 1 block) -->
         <activity
             android:name=".ui.RegistrationActivity"
             android:label="👤 Đăng ký face"
             android:parentActivityName=".ui.MainActivity"
-            android:theme="@style/Theme.AppCompat.DayNight.DarkActionBar">
+            android:theme="@style/Theme.FaceDetectorMulti.Dark">   <!-- ✅ Dùng theme dark -->
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".ui.MainActivity" />
