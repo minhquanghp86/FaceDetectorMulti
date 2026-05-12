@@ -1,6 +1,6 @@
 package com.facedetectormulti.ui;
 
-import android.graphics.Bitmap;  // ✅ Thêm import Bitmap
+import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -39,28 +39,45 @@ public class ManageFacesActivity extends AppCompatActivity {
         
         loadFaces();
     }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // ✅ Luôn refresh khi quay lại màn hình này
+        loadFaces();
+    }
 
     private void loadFaces() {
         new Thread(() -> {
             facesList = FaceDatabase.getInstance(this).faceDao().getAllFaces();
             runOnUiThread(() -> {
-                adapter = new FacesAdapter(facesList);  // ✅ Constructor có tham số
-                recyclerView.setAdapter(adapter);
+                if (adapter == null) {
+                    adapter = new FacesAdapter(facesList);
+                    recyclerView.setAdapter(adapter);
+                } else {
+                    // ✅ Cập nhật dữ liệu mới
+                    adapter.updateFaces(facesList);
+                }
             });
-        }).start();    }
+        }).start();
+    }
 
-    // ✅ Inner Adapter class - FIX: public constructor + public methods
+    // ✅ Inner Adapter class
     public class FacesAdapter extends RecyclerView.Adapter<FacesAdapter.ViewHolder> {
         private List<RegisteredFace> faces;
         
-        // ✅ Constructor public với tham số
         public FacesAdapter(List<RegisteredFace> faces) {
             this.faces = faces;
         }
         
+        // ✅ Thêm method update
+        public void updateFaces(List<RegisteredFace> newFaces) {
+            this.faces = newFaces;
+            notifyDataSetChanged();
+        }
+        
         @NonNull
         @Override
-        // ✅ FIX: phải là public, không phải package-private
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_registered_face, parent, false);
@@ -71,12 +88,13 @@ public class ManageFacesActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             RegisteredFace face = faces.get(position);
             holder.tvName.setText(face.name);
-            holder.tvDescription.setText(face.description != null ? face.description : "Không có ghi chú");
+            holder.tvDescription.setText(face.description != null && !face.description.isEmpty() 
+                ? face.description : "Không có ghi chú");
             holder.tvCount.setText("Đã phát hiện: " + face.detectionCount + " lần");
             
             // Load avatar
-            if (face.avatarBase64 != null) {
-                Bitmap avatar = FaceEmbeddingExtractor.fromBase64(face.avatarBase64);  // ✅ Bitmap đã import
+            if (face.avatarBase64 != null && !face.avatarBase64.isEmpty()) {
+                Bitmap avatar = FaceEmbeddingExtractor.fromBase64(face.avatarBase64);
                 if (avatar != null) {
                     holder.ivAvatar.setImageBitmap(avatar);
                 }
@@ -96,7 +114,8 @@ public class ManageFacesActivity extends AppCompatActivity {
                                 Toast.makeText(ManageFacesActivity.this, 
                                     "✓ Đã xóa", Toast.LENGTH_SHORT).show();
                             });
-                        }).start();                    })
+                        }).start();
+                    })
                     .setNegativeButton("Hủy", null)
                     .show();
             });
@@ -104,7 +123,7 @@ public class ManageFacesActivity extends AppCompatActivity {
 
         @Override
         public int getItemCount() {
-            return faces.size();
+            return faces != null ? faces.size() : 0;
         }
 
         // ✅ ViewHolder class
@@ -122,11 +141,5 @@ public class ManageFacesActivity extends AppCompatActivity {
                 btnDelete = itemView.findViewById(R.id.btnDelete);
             }
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        loadFaces(); // Refresh list
     }
 }
