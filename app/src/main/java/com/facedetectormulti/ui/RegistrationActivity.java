@@ -299,17 +299,24 @@ public class RegistrationActivity extends AppCompatActivity {
         btnCapture.setEnabled(false);
         btnCapture.setText("⏳ Đang xử lý...");
     
-        // ✅ Resize ảnh lớn để tránh crash
-        Bitmap resized = bitmap;
+        // ✅ Resize ảnh lớn để tránh crash - GÁN FINAL
+        final Bitmap sourceBitmap = bitmap; // Giữ lại bitmap gốc
+        final Bitmap resized;
         int maxSize = 1024;
         if (bitmap.getWidth() > maxSize || bitmap.getHeight() > maxSize) {
             float scale = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
             int newW = (int) (bitmap.getWidth() * scale);
             int newH = (int) (bitmap.getHeight() * scale);
             resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+        } else {
+            resized = bitmap;
         }
     
-        InputImage image = InputImage.fromBitmap(resized, 0);
+        // ✅ Gán final cho lambda
+        final Bitmap finalResized = resized;
+        final Bitmap finalBitmap = sourceBitmap;
+    
+        InputImage image = InputImage.fromBitmap(finalResized, 0);
     
         faceDetector.process(image)
             .addOnSuccessListener(faces -> {
@@ -317,12 +324,16 @@ public class RegistrationActivity extends AppCompatActivity {
                 btnCapture.setText("📸 Chụp ảnh");
             
                 if (faces.isEmpty()) {
-                    // ✅ Fallback: nếu ML Kit không tìm thấy, dùng cả ảnh
                     new AlertDialog.Builder(this)
                         .setTitle("Không tìm thấy khuôn mặt")
                         .setMessage("ML Kit không phát hiện được khuôn mặt. Bạn có muốn dùng toàn bộ ảnh không?")
                         .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
-                            setCapturedFace(resized != bitmap ? resized : bitmap.copy(Bitmap.Config.ARGB_8888, true));
+                            // ✅ Dùng biến final
+                            if (finalResized != finalBitmap) {
+                                setCapturedFace(finalResized);
+                            } else {
+                                setCapturedFace(finalBitmap.copy(Bitmap.Config.ARGB_8888, true));
+                            }
                         })
                         .setNegativeButton("Thử lại", null)
                         .show();
@@ -343,16 +354,16 @@ public class RegistrationActivity extends AppCompatActivity {
             
                 int left = Math.max(0, box.left - margin);
                 int top = Math.max(0, box.top - margin);
-                int right = Math.min(resized.getWidth(), box.right + margin);
-                int bottom = Math.min(resized.getHeight(), box.bottom + margin);
+                int right = Math.min(finalResized.getWidth(), box.right + margin);
+                int bottom = Math.min(finalResized.getHeight(), box.bottom + margin);
             
                 try {
-                    Bitmap cropped = Bitmap.createBitmap(resized, left, top, right - left, bottom - top);
+                    Bitmap cropped = Bitmap.createBitmap(finalResized, left, top, right - left, bottom - top);
                     setCapturedFace(cropped);
                     Toast.makeText(this, "✅ Đã phát hiện và crop khuôn mặt", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
                     Log.e(TAG, "Crop failed: " + e.getMessage());
-                    setCapturedFace(resized.copy(Bitmap.Config.ARGB_8888, true));
+                    setCapturedFace(finalResized.copy(Bitmap.Config.ARGB_8888, true));
                 }
             })
             .addOnFailureListener(e -> {
@@ -360,12 +371,11 @@ public class RegistrationActivity extends AppCompatActivity {
                 btnCapture.setText("📸 Chụp ảnh");
                 Log.e(TAG, "Face detection failed: " + e.getMessage(), e);
             
-                // ✅ Fallback khi ML Kit lỗi
                 new AlertDialog.Builder(this)
                     .setTitle("Lỗi phát hiện")
                     .setMessage("Không thể phát hiện khuôn mặt. Dùng toàn bộ ảnh?")
                     .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
-                        setCapturedFace(bitmap.copy(Bitmap.Config.ARGB_8888, true));
+                        setCapturedFace(finalBitmap.copy(Bitmap.Config.ARGB_8888, true));
                     })
                     .setNegativeButton("Hủy", null)
                     .show();
