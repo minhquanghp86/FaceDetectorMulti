@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.net.Uri;
@@ -31,11 +32,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.facedetectormulti.R;
-import android.graphics.YuvImage;
 import com.facedetectormulti.detection.FaceDao;
 import com.facedetectormulti.detection.FaceDatabase;
 import com.facedetectormulti.detection.FaceEmbeddingExtractor;
-import com.facedetectormulti.detection.FaceResult;
 import com.facedetectormulti.detection.RegisteredFace;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.common.InputImage;
@@ -44,7 +43,10 @@ import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -56,23 +58,23 @@ public class RegistrationActivity extends AppCompatActivity {
     private static final int REQUEST_CAMERA_PERMISSION = 101;
     private static final int REQUEST_PICK_IMAGE = 103;
     
-    // UI Components
+    // UI
     private PreviewView cameraPreview;
     private ImageView ivPreview;
     private EditText etName, etDescription;
     private Button btnCapture, btnGallery, btnSave, btnCancel;
-    private ImageButton btnSwitchCamera;  // ✅ Nút chuyển camera
+    private ImageButton btnSwitchCamera;
     
     // Camera
     private ExecutorService cameraExecutor;
     private ProcessCameraProvider cameraProvider;
-    private CameraSelector currentCamera = CameraSelector.DEFAULT_BACK_CAMERA; // ✅ Mặc định camera sau
+    private CameraSelector currentCamera = CameraSelector.DEFAULT_BACK_CAMERA;
     
     // Face detection
     private FaceDetector faceDetector;
     private Bitmap capturedFace;
     private Bitmap latestFrame;
-    private boolean isFrontCamera = false; // ✅ Theo dõi camera hiện tại
+    private boolean isFrontCamera = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,12 +97,7 @@ public class RegistrationActivity extends AppCompatActivity {
         btnGallery = findViewById(R.id.btnGallery);
         btnSave = findViewById(R.id.btnSave);
         btnCancel = findViewById(R.id.btnCancel);
-        btnSwitchCamera = findViewById(R.id.btnSwitchCamera); // ✅ Nút chuyển camera
-        
-        // Ẩn nút switch nếu không có trong layout
-        if (btnSwitchCamera == null) {
-            Log.w(TAG, "btnSwitchCamera not found in layout, using default back camera");
-        }
+        btnSwitchCamera = findViewById(R.id.btnSwitchCamera);
     }
 
     private void initFaceDetector() {
@@ -108,6 +105,7 @@ public class RegistrationActivity extends AppCompatActivity {
             .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
             .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
             .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+            .setMinFaceSize(0.15f)
             .build();
         faceDetector = FaceDetection.getClient(options);
     }
@@ -117,14 +115,10 @@ public class RegistrationActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
-        // ✅ Chuyển camera trước/sau
         if (btnSwitchCamera != null) {
-            btnSwitchCamera.setOnClickListener(v -> {
-                switchCamera();
-            });
+            btnSwitchCamera.setOnClickListener(v -> switchCamera());
         }
         
-        // Chụp ảnh từ camera
         btnCapture.setOnClickListener(v -> {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
                     == PackageManager.PERMISSION_GRANTED) {
@@ -135,29 +129,16 @@ public class RegistrationActivity extends AppCompatActivity {
             }
         });
 
-        // Chọn ảnh từ gallery
         btnGallery.setOnClickListener(v -> pickImageFromGallery());
-
-        // Lưu đăng ký
         btnSave.setOnClickListener(v -> saveRegistration());
-
-        // Hủy
         btnCancel.setOnClickListener(v -> finish());
     }
 
-    // ✅ Method chuyển camera
     private void switchCamera() {
         isFrontCamera = !isFrontCamera;
+        currentCamera = isFrontCamera ? CameraSelector.DEFAULT_FRONT_CAMERA : CameraSelector.DEFAULT_BACK_CAMERA;
+        Toast.makeText(this, isFrontCamera ? "📷 Camera trước" : "📷 Camera sau", Toast.LENGTH_SHORT).show();
         
-        if (isFrontCamera) {
-            currentCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
-            Toast.makeText(this, "📷 Camera trước", Toast.LENGTH_SHORT).show();
-        } else {
-            currentCamera = CameraSelector.DEFAULT_BACK_CAMERA;
-            Toast.makeText(this, "📷 Camera sau", Toast.LENGTH_SHORT).show();
-        }
-        
-        // Khởi động lại camera
         if (cameraProvider != null) {
             cameraProvider.unbindAll();
         }
@@ -165,12 +146,10 @@ public class RegistrationActivity extends AppCompatActivity {
     }
 
     private void startCameraPreview() {
-        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = 
-            ProcessCameraProvider.getInstance(this);
-        
-        cameraProviderFuture.addListener(() -> {
+        ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
+        future.addListener(() -> {
             try {
-                cameraProvider = cameraProviderFuture.get();
+                cameraProvider = future.get();
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Camera init failed", e);
@@ -193,9 +172,10 @@ public class RegistrationActivity extends AppCompatActivity {
             .build();
         
         imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
-            // ✅ Sửa: chuyển đúng sang ảnh màu
-            Bitmap bitmap = imageProxyToColorBitmap(imageProxy);
+            // ✅ Chuyển đúng sang Bitmap màu
+            Bitmap bitmap = imageProxyToBitmap(imageProxy);
             if (bitmap != null) {
+                // Lật ảnh nếu camera trước
                 if (isFrontCamera) {
                     Matrix matrix = new Matrix();
                     matrix.preScale(-1f, 1f);
@@ -225,62 +205,61 @@ public class RegistrationActivity extends AppCompatActivity {
     }
 
     /**
-     * Chuyển ImageProxy thành Bitmap màu (YUV → RGB)
+     * ✅ Chuyển ImageProxy (YUV_420_888) → Bitmap RGB
      */
-    private Bitmap imageProxyToColorBitmap(ImageProxy imageProxy) {
+    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
         try {
             android.media.Image image = imageProxy.getImage();
             if (image == null) return null;
-        
+            
             int w = imageProxy.getWidth();
             int h = imageProxy.getHeight();
-        
-            // Dùng YuvImage để chuyển đúng
+            
+            // Lấy các plane Y, U, V
             android.media.Image.Plane[] planes = image.getPlanes();
             if (planes.length < 3) {
-                // Fallback: ảnh grayscale
-                return imageProxyToBitmap(imageProxy);
+                image.close();
+                return null;
             }
-        
-            java.nio.ByteBuffer yBuffer = planes[0].getBuffer();
-            java.nio.ByteBuffer uBuffer = planes[1].getBuffer();
-            java.nio.ByteBuffer vBuffer = planes[2].getBuffer();
-        
-            int ySize = yBuffer.remaining();
-            int uSize = uBuffer.remaining();
-            int vSize = vBuffer.remaining();
-        
+            
+            ByteBuffer yBuf = planes[0].getBuffer();
+            ByteBuffer uBuf = planes[1].getBuffer();
+            ByteBuffer vBuf = planes[2].getBuffer();
+            
+            int ySize = yBuf.remaining();
+            int uSize = uBuf.remaining();
+            int vSize = vBuf.remaining();
+            
             byte[] nv21 = new byte[ySize + uSize + vSize];
-        
-            // Copy Y
-            yBuffer.get(nv21, 0, ySize);
-            // Copy V
-            vBuffer.get(nv21, ySize, vSize);
-            // Copy U
-            uBuffer.get(nv21, ySize + vSize, uSize);
-        
-            YuvImage yuvImage = new YuvImage(nv21, android.graphics.ImageFormat.NV21, w, h, null);
-            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            
+            yBuf.get(nv21, 0, ySize);
+            vBuf.get(nv21, ySize, vSize);
+            uBuf.get(nv21, ySize + vSize, uSize);
+            
+            // Dùng YuvImage để decode
+            android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
+                nv21, android.graphics.ImageFormat.NV21, w, h, null);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, w, h), 90, out);
-            byte[] imageBytes = out.toByteArray();
-        
-            Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+            byte[] jpegBytes = out.toByteArray();
+            
+            // Decode JPEG → Bitmap
+            Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
             image.close();
             return bitmap;
         } catch (Exception e) {
-            Log.e(TAG, "Color conversion failed: " + e.getMessage(), e);
-            return imageProxyToBitmap(imageProxy);
+            Log.e(TAG, "imageProxyToBitmap failed: " + e.getMessage(), e);
+            return null;
         }
     }
 
-            
     private void captureFromCamera() {
         if (latestFrame == null || latestFrame.isRecycled()) {
-            Toast.makeText(this, "⚠ Chưa có khung hình, thử lại sau", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "⚠ Chưa có khung hình", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // Phát hiện và crop face từ frame mới nhất
+        // ✅ Dùng trực tiếp latestFrame (đã là Bitmap màu)
         detectAndCropFace(latestFrame);
     }
 
@@ -290,153 +269,116 @@ public class RegistrationActivity extends AppCompatActivity {
         startActivityForResult(intent, REQUEST_PICK_IMAGE);
     }
 
-    private void detectAndCropFace(Bitmap bitmap) {
-        if (bitmap == null || bitmap.isRecycled()) {
+    private void detectAndCropFace(Bitmap source) {
+        if (source == null || source.isRecycled()) {
             Toast.makeText(this, "⚠ Ảnh không hợp lệ", Toast.LENGTH_SHORT).show();
             return;
         }
-    
+        
         btnCapture.setEnabled(false);
         btnCapture.setText("⏳ Đang xử lý...");
-    
-        // ✅ Resize ảnh lớn để tránh crash - GÁN FINAL
-        final Bitmap sourceBitmap = bitmap; // Giữ lại bitmap gốc
-        final Bitmap resized;
-        int maxSize = 1024;
-        if (bitmap.getWidth() > maxSize || bitmap.getHeight() > maxSize) {
-            float scale = Math.min((float) maxSize / bitmap.getWidth(), (float) maxSize / bitmap.getHeight());
-            int newW = (int) (bitmap.getWidth() * scale);
-            int newH = (int) (bitmap.getHeight() * scale);
-            resized = Bitmap.createScaledBitmap(bitmap, newW, newH, true);
+        
+        // ✅ Resize nếu ảnh quá lớn
+        final Bitmap processed;
+        int maxDim = 1024;
+        if (source.getWidth() > maxDim || source.getHeight() > maxDim) {
+            float scale = Math.min((float) maxDim / source.getWidth(), (float) maxDim / source.getHeight());
+            processed = Bitmap.createScaledBitmap(source, 
+                (int)(source.getWidth() * scale), (int)(source.getHeight() * scale), true);
         } else {
-            resized = bitmap;
+            processed = source;
         }
-    
-        // ✅ Gán final cho lambda
-        final Bitmap finalResized = resized;
-        final Bitmap finalBitmap = sourceBitmap;
-    
-        InputImage image = InputImage.fromBitmap(finalResized, 0);
-    
+        
+        InputImage image = InputImage.fromBitmap(processed, 0);
+        final Bitmap original = source;
+        
         faceDetector.process(image)
             .addOnSuccessListener(faces -> {
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
-            
+                
                 if (faces.isEmpty()) {
-                    new AlertDialog.Builder(this)
-                        .setTitle("Không tìm thấy khuôn mặt")
-                        .setMessage("ML Kit không phát hiện được khuôn mặt. Bạn có muốn dùng toàn bộ ảnh không?")
-                        .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
-                            // ✅ Dùng biến final
-                            if (finalResized != finalBitmap) {
-                                setCapturedFace(finalResized);
-                            } else {
-                                setCapturedFace(finalBitmap.copy(Bitmap.Config.ARGB_8888, true));
-                            }
-                        })
-                        .setNegativeButton("Thử lại", null)
-                        .show();
+                    // ✅ Fallback: không tìm thấy face → hỏi dùng cả ảnh
+                    showNoFaceDialog(original);
                     return;
                 }
-            
-                // Lấy face lớn nhất
-                Face largestFace = faces.get(0);
-                for (Face face : faces) {
-                    if (face.getBoundingBox().width() * face.getBoundingBox().height() 
-                        > largestFace.getBoundingBox().width() * largestFace.getBoundingBox().height()) {
-                        largestFace = face;
+                
+                // Tìm face lớn nhất
+                Face bestFace = faces.get(0);
+                for (Face f : faces) {
+                    if (f.getBoundingBox().width() * f.getBoundingBox().height() 
+                        > bestFace.getBoundingBox().width() * bestFace.getBoundingBox().height()) {
+                        bestFace = f;
                     }
                 }
-            
-                Rect box = largestFace.getBoundingBox();
-                int margin = (int)(Math.min(box.width(), box.height()) * 0.3f);
-            
-                int left = Math.max(0, box.left - margin);
-                int top = Math.max(0, box.top - margin);
-                int right = Math.min(finalResized.getWidth(), box.right + margin);
-                int bottom = Math.min(finalResized.getHeight(), box.bottom + margin);
-            
+                
+                Rect box = bestFace.getBoundingBox();
+                // Thêm margin 30%
+                int marginW = (int)(box.width() * 0.3f);
+                int marginH = (int)(box.height() * 0.3f);
+                
+                int left = Math.max(0, box.left - marginW);
+                int top = Math.max(0, box.top - marginH);
+                int right = Math.min(processed.getWidth(), box.right + marginW);
+                int bottom = Math.min(processed.getHeight(), box.bottom + marginH);
+                
                 try {
-                    Bitmap cropped = Bitmap.createBitmap(finalResized, left, top, right - left, bottom - top);
+                    Bitmap cropped = Bitmap.createBitmap(processed, left, top, right - left, bottom - top);
                     setCapturedFace(cropped);
-                    Toast.makeText(this, "✅ Đã phát hiện và crop khuôn mặt", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "✅ Đã crop khuôn mặt", Toast.LENGTH_SHORT).show();
                 } catch (Exception e) {
-                    Log.e(TAG, "Crop failed: " + e.getMessage());
-                    setCapturedFace(finalResized.copy(Bitmap.Config.ARGB_8888, true));
+                    Log.e(TAG, "Crop error: " + e.getMessage());
+                    showNoFaceDialog(original);
                 }
             })
             .addOnFailureListener(e -> {
                 btnCapture.setEnabled(true);
                 btnCapture.setText("📸 Chụp ảnh");
-                Log.e(TAG, "Face detection failed: " + e.getMessage(), e);
-            
-                new AlertDialog.Builder(this)
-                    .setTitle("Lỗi phát hiện")
-                    .setMessage("Không thể phát hiện khuôn mặt. Dùng toàn bộ ảnh?")
-                    .setPositiveButton("Dùng ảnh này", (dialog, which) -> {
-                        setCapturedFace(finalBitmap.copy(Bitmap.Config.ARGB_8888, true));
-                    })
-                    .setNegativeButton("Hủy", null)
-                    .show();
+                Log.e(TAG, "Detection failed: " + e.getMessage());
+                showNoFaceDialog(original);
             });
+    }
+    
+    private void showNoFaceDialog(Bitmap original) {
+        new AlertDialog.Builder(this)
+            .setTitle("Không tìm thấy khuôn mặt")
+            .setMessage("Không phát hiện được khuôn mặt trong ảnh. Dùng toàn bộ ảnh để đăng ký?")
+            .setPositiveButton("Dùng ảnh này", (d, w) -> {
+                Bitmap copy = original.copy(Bitmap.Config.ARGB_8888, true);
+                setCapturedFace(copy);
+            })
+            .setNegativeButton("Thử lại", null)
+            .show();
     }
 
     private void setCapturedFace(Bitmap face) {
-        // Giải phóng bitmap cũ
-        if (capturedFace != null && !capturedFace.isRecycled()) {
+        if (capturedFace != null && !capturedFace.isRecycled() && capturedFace != face) {
             capturedFace.recycle();
         }
         this.capturedFace = face;
         
-        // Hiển thị ảnh đã chụp
         ivPreview.setImageBitmap(face);
         cameraPreview.setVisibility(View.GONE);
         ivPreview.setVisibility(View.VISIBLE);
         
-        // Cập nhật trạng thái nút
         btnCapture.setEnabled(false);
         btnCapture.setText("✅ Đã chụp");
         btnGallery.setEnabled(false);
-        
-        // Focus vào ô tên
         etName.requestFocus();
     }
 
     private void saveRegistration() {
         String name = etName.getText().toString().trim();
         if (name.isEmpty()) {
-            Toast.makeText(this, "Vui lòng nhập tên", Toast.LENGTH_SHORT).show();
-            etName.requestFocus();
+            Toast.makeText(this, "⚠ Vui lòng nhập tên", Toast.LENGTH_SHORT).show();
             return;
         }
         
         if (capturedFace == null || capturedFace.isRecycled()) {
-            Toast.makeText(this, "Vui lòng chụp hoặc chọn ảnh face", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "⚠ Vui lòng chụp hoặc chọn ảnh", Toast.LENGTH_SHORT).show();
             return;
         }
         
-        // Kiểm tra tên đã tồn tại
-        new Thread(() -> {
-            boolean exists = FaceDatabase.getInstance(this).faceDao().getAllFaces()
-                .stream().anyMatch(f -> f.name.equalsIgnoreCase(name));
-            
-            if (exists) {
-                runOnUiThread(() -> {
-                    new AlertDialog.Builder(this)
-                        .setTitle("Tên đã tồn tại")
-                        .setMessage("Tên \"" + name + "\" đã được đăng ký. Bạn có muốn ghi đè?")
-                        .setPositiveButton("Ghi đè", (dialog, which) -> doSave(name))
-                        .setNegativeButton("Hủy", null)
-                        .show();
-                });
-            } else {
-                doSave(name);
-            }
-        }).start();
-    }
-    
-    private void doSave(String name) {
         btnSave.setEnabled(false);
         btnSave.setText("⏳ Đang lưu...");
         
@@ -448,8 +390,9 @@ public class RegistrationActivity extends AppCompatActivity {
                 RegisteredFace newFace = new RegisteredFace(name, embedding, avatarBase64);
                 newFace.description = etDescription.getText().toString().trim();
                 
-                // Xóa face cũ nếu trùng tên
                 FaceDao dao = FaceDatabase.getInstance(this).faceDao();
+                
+                // Xóa face cũ nếu trùng tên
                 List<RegisteredFace> existing = dao.getAllFaces();
                 for (RegisteredFace f : existing) {
                     if (f.name.equalsIgnoreCase(name)) {
@@ -460,113 +403,94 @@ public class RegistrationActivity extends AppCompatActivity {
                 long id = dao.insert(newFace);
                 
                 runOnUiThread(() -> {
+                    btnSave.setEnabled(true);
+                    btnSave.setText("💾 Lưu");
+                    
                     if (id > 0) {
                         Toast.makeText(this, "✓ Đã đăng ký: " + name, Toast.LENGTH_SHORT).show();
                         setResult(RESULT_OK);
                         finish();
                     } else {
-                        Toast.makeText(this, "❌ Lỗi lưu database", Toast.LENGTH_SHORT).show();
-                        btnSave.setEnabled(true);
-                        btnSave.setText("💾 Lưu");
+                        Toast.makeText(this, "❌ Lỗi lưu dữ liệu", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
-                Log.e(TAG, "Save failed: " + e.getMessage(), e);
+                Log.e(TAG, "Save error: " + e.getMessage(), e);
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     btnSave.setEnabled(true);
                     btnSave.setText("💾 Lưu");
+                    Toast.makeText(this, "❌ Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
         }).start();
-    }
-
-    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
-        try {
-            android.media.Image image = imageProxy.getImage();
-            if (image == null) return null;
-            
-            int w = imageProxy.getWidth();
-            int h = imageProxy.getHeight();
-            android.media.Image.Plane[] planes = image.getPlanes();
-            if (planes.length == 0) { 
-                image.close(); 
-                return null; 
-            }
-            
-            java.nio.ByteBuffer buffer = planes[0].getBuffer();
-            int pixelStride = planes[0].getPixelStride();
-            int rowStride = planes[0].getRowStride();
-            
-            Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            int[] pixels = new int[w * h];
-            
-            buffer.rewind();
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    int offset = y * rowStride + x * pixelStride;
-                    if (offset < buffer.capacity()) {
-                        int gray = buffer.get(offset) & 0xFF;
-                        pixels[y * w + x] = 0xFF000000 | (gray << 16) | (gray << 8) | gray;
-                    }
-                }
-            }
-            bitmap.setPixels(pixels, 0, w, 0, 0, w, h);
-            image.close();
-            return bitmap;
-        } catch (Exception e) {
-            Log.e(TAG, "ImageProxy conversion failed", e);
-            return null;
-        }
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         
-        if (resultCode == RESULT_OK && data != null) {
-            if (requestCode == REQUEST_PICK_IMAGE) {
-                Uri imageUri = data.getData();
-                if (imageUri != null) {
-                    try {
-                        Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+        if (resultCode == RESULT_OK && data != null && requestCode == REQUEST_PICK_IMAGE) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                try {
+                    // ✅ Đọc ảnh từ gallery an toàn (giới hạn kích thước)
+                    BitmapFactory.Options opts = new BitmapFactory.Options();
+                    opts.inJustDecodeBounds = true;
+                    InputStream is = getContentResolver().openInputStream(uri);
+                    BitmapFactory.decodeStream(is, null, opts);
+                    is.close();
+                    
+                    // Tính sample size để ảnh không quá lớn
+                    opts.inSampleSize = calculateInSampleSize(opts, 1024, 1024);
+                    opts.inJustDecodeBounds = false;
+                    
+                    is = getContentResolver().openInputStream(uri);
+                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
+                    is.close();
+                    
+                    if (bitmap != null) {
                         detectAndCropFace(bitmap);
-                    } catch (IOException e) {
-                        Toast.makeText(this, "❌ Lỗi đọc ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "❌ Không thể đọc ảnh", Toast.LENGTH_SHORT).show();
                     }
+                } catch (Exception e) {
+                    Log.e(TAG, "Gallery error: " + e.getMessage(), e);
+                    Toast.makeText(this, "❌ Lỗi đọc ảnh", Toast.LENGTH_SHORT).show();
                 }
             }
         }
+    }
+    
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        int height = options.outHeight;
+        int width = options.outWidth;
+        int inSampleSize = 1;
+        if (height > reqHeight || width > reqWidth) {
+            int halfHeight = height / 2;
+            int halfWidth = width / 2;
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
                                           @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQUEST_CAMERA_PERMISSION) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                captureFromCamera();
-            } else {
-                Toast.makeText(this, "❌ Cần quyền Camera", Toast.LENGTH_SHORT).show();
-            }
+        if (requestCode == REQUEST_CAMERA_PERMISSION && grantResults.length > 0 
+            && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            captureFromCamera();
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Cleanup bitmaps
-        if (capturedFace != null && !capturedFace.isRecycled()) {
-            capturedFace.recycle();
-        }
-        if (latestFrame != null && !latestFrame.isRecycled()) {
-            latestFrame.recycle();
-        }
-        if (faceDetector != null) {
-            faceDetector.close();
-        }
-        if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
-            cameraExecutor.shutdown();
-        }
+        if (capturedFace != null && !capturedFace.isRecycled()) capturedFace.recycle();
+        if (latestFrame != null && !latestFrame.isRecycled()) latestFrame.recycle();
+        if (faceDetector != null) faceDetector.close();
+        if (cameraExecutor != null && !cameraExecutor.isShutdown()) cameraExecutor.shutdown();
     }
 }
