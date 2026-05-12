@@ -17,6 +17,8 @@ import com.google.mlkit.vision.face.FaceDetectorOptions;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.facedetectormulti.detection.DetectionCallback;
+
 /**
  * Multi-face detector with face recognition support.
  * Uses ML Kit for detection + improved hybrid features for recognition.
@@ -61,9 +63,7 @@ public class MultiFaceDetector {
         }
     }
 
-    public interface DetectionCallback {
-        void onResult(List<? extends FaceResult> results, long processingMs, int imageWidth, int imageHeight);
-    }
+    
 
     private final FaceDetector mlKitDetector;
     private final DetectionCallback callback;
