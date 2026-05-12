@@ -2,9 +2,9 @@ name: Build APK
 
 on:
   push:
-    branches: [ main, test2 ]
+    branches: [ main, test3 ]
   pull_request:
-    branches: [ main, test2 ]
+    branches: [ main, test3 ]
   workflow_dispatch:
 
 jobs:
