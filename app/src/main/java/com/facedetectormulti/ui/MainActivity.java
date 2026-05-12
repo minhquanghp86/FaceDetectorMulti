@@ -59,6 +59,9 @@ public class MainActivity extends AppCompatActivity {
 
     // State
     private List<FaceResult> lastDetectedFaces = new ArrayList<>();
+    
+    // ✅ Cờ đánh dấu đã init detector xong chưa
+    private boolean detectorReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
         setupClickListeners();
         initCameraExecutor();
         initDetector();
-        applySettingsFromPrefs();
+        applySettingsFromPrefs(); // ✅ Sẽ chạy an toàn vì detector đã được tạo
 
         if (hasCameraPermission()) {
             startCamera();
@@ -168,15 +171,25 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initDetector() {
-        detector = new MultiFaceDetector(
-            (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
-                lastDetectedFaces = new ArrayList<>(results);
-                faceOverlay.update(results, processingMs);
-                updateHud(results.size(), processingMs);
-            }),
-            this,
-            MultiFaceDetector.Config.createDefault()
-        );
+        try {
+            MultiFaceDetector.Config config = MultiFaceDetector.Config.createDefault()
+                .setEnableRecognition(true); // ✅ Bật recognition mặc định
+            
+            detector = new MultiFaceDetector(
+                (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
+                    lastDetectedFaces = new ArrayList<>(results);
+                    faceOverlay.update(results, processingMs);
+                    updateHud(results.size(), processingMs);
+                }),
+                this,
+                config
+            );
+            detectorReady = true;
+            Log.d(TAG, "Detector initialized successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to init detector: " + e.getMessage(), e);
+            detectorReady = false;
+        }
     }
 
     private void updateHud(int count, long ms) {
@@ -230,66 +243,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // ✅ SỬA: An toàn tuyệt đối
     private void applySettingsFromPrefs() {
-        int frameInterval = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 100);
-        if (detector != null) detector.setFrameIntervalMs(frameInterval);
-
-        float minFaceSize = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.12f);
-        float minConf = prefs.getFloat(SettingsActivity.KEY_MIN_CONFIDENCE, 0.5f);
-        boolean accurate = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
+        if (!detectorReady || detector == null) {
+            Log.w(TAG, "applySettingsFromPrefs: detector not ready, skipping");
+            return;
+        }
         
-        // ✅ Đọc recognition settings
-        boolean enableRec = prefs.getBoolean(SettingsActivity.KEY_ENABLE_RECOGNITION, true);
-        float recThreshold = prefs.getFloat(SettingsActivity.KEY_RECOGNITION_THRESHOLD, 0.55f);
+        try {
+            int frameInterval = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 100);
+            detector.setFrameIntervalMs(frameInterval);
 
-        Log.d(TAG, "applySettings: enableRec=" + enableRec + ", threshold=" + recThreshold);
-
-        MultiFaceDetector.Config current = detector != null ? detector.getCurrentConfig() : null;
-        boolean needReinit = current == null ||
-            Math.abs(current.minFaceSize - minFaceSize) > 0.01f ||
-            Math.abs(current.minConfidence - minConf) > 0.05f ||
-            current.accurateMode != accurate ||
-            current.enableRecognition != enableRec;
-
-        if (needReinit) {
-            Log.d(TAG, "Re-init detector with new config");
-            if (detector != null) detector.close();
-            
-            MultiFaceDetector.Config newCfg = MultiFaceDetector.Config.createDefault()
-                .setMinFaceSize(minFaceSize)
-                .setMinConfidence(minConf)
-                .setAccurateMode(accurate)
-                .setEnableRecognition(enableRec)
-                .setMinBoxAreaRatio(0.003f)
-                .setFrameIntervalMs(frameInterval);
-            
-            detector = new MultiFaceDetector(
-                (results, ms, w, h) -> runOnUiThread(() -> {
-                    lastDetectedFaces = new ArrayList<>(results);
-                    faceOverlay.update(results, ms);
-                    updateHud(results.size(), ms);
-                }),
-                this,
-                newCfg
-            );
-            
-            // ✅ Áp dụng threshold từ Settings
+            // ✅ Đọc recognition threshold
+            float recThreshold = prefs.getFloat(SettingsActivity.KEY_RECOGNITION_THRESHOLD, 0.55f);
             detector.setRecognitionThreshold(recThreshold);
             
-            if (cameraProvider != null) {
-                cameraProvider.unbindAll();
-                startCamera();
-            }
-        } else {
-            // ✅ Nếu không cần reinit, vẫn cập nhật threshold
-            if (detector != null) {
-                detector.setRecognitionThreshold(recThreshold);
-                
-                // Cập nhật recognition enable/disable
-                if (detector.getCurrentConfig().enableRecognition != enableRec) {
+            // ✅ Đọc enable recognition
+            boolean enableRec = prefs.getBoolean(SettingsActivity.KEY_ENABLE_RECOGNITION, true);
+            
+            // ✅ An toàn: kiểm tra config trước
+            MultiFaceDetector.Config config = detector.getCurrentConfig();
+            if (config != null) {
+                if (config.enableRecognition != enableRec) {
                     detector.enableRecognition(enableRec);
+                    Log.d(TAG, "Recognition toggled to: " + enableRec);
                 }
+            } else {
+                Log.w(TAG, "getCurrentConfig() returned null, cannot toggle recognition");
             }
+            
+            Log.d(TAG, "Settings applied: threshold=" + recThreshold + ", enableRec=" + enableRec);
+        } catch (Exception e) {
+            Log.e(TAG, "Error applying settings: " + e.getMessage(), e);
         }
     }
 
@@ -302,10 +287,14 @@ public class MainActivity extends AppCompatActivity {
         }
         else if (requestCode == REQUEST_CODE_REGISTRATION && resultCode == RESULT_OK) {
             Toast.makeText(this, "✓ Đã đăng ký khuôn mặt mới", Toast.LENGTH_SHORT).show();
+            // Làm mới detector
             if (detector != null) {
                 detector.close();
-                initDetector();
-                applySettingsFromPrefs(); // ✅ Áp dụng lại settings sau khi reinit
+            }
+            initDetector();
+            applySettingsFromPrefs();
+            if (cameraProvider != null) {
+                startCamera();
             }
         }
     }
@@ -346,7 +335,6 @@ public class MainActivity extends AppCompatActivity {
         if (hasCameraPermission() && cameraProvider != null) {
             startCamera();
         }
-        // ✅ Refresh settings khi quay lại
         applySettingsFromPrefs();
     }
 
