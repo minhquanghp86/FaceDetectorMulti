@@ -43,6 +43,11 @@ public class FaceOverlayView extends View {
     private int frameCount = 0;
     private static final int LOG_INTERVAL = 30;
 
+    // ✅ Cache số lượng face trong DB để tránh gọi DB mỗi frame
+    private String dbInfoCache = "DB: ?";
+    private int dbInfoFrameCounter = 0;
+    private static final int DB_INFO_REFRESH_INTERVAL = 60; // Refresh mỗi 60 frame
+
     public FaceOverlayView(Context context) {
         super(context);
         init();
@@ -81,6 +86,11 @@ public class FaceOverlayView extends View {
         if (frameCount % LOG_INTERVAL == 0) {
             logFaceDetails();
         }
+        
+        // ✅ Refresh DB info định kỳ
+        if (frameCount % DB_INFO_REFRESH_INTERVAL == 0) {
+            refreshDbInfo();
+        }
 
         postInvalidate();
     }
@@ -101,11 +111,25 @@ public class FaceOverlayView extends View {
         postInvalidate();
     }
 
+    // ✅ Lấy DB info an toàn
+    private void refreshDbInfo() {
+        try {
+            Context ctx = getContext();
+            if (ctx != null) {
+                int dbCount = com.facedetectormulti.detection.FaceDatabase
+                    .getInstance(ctx).faceDao().getCount();
+                dbInfoCache = "DB: " + dbCount + " faces";
+            }
+        } catch (Exception e) {
+            dbInfoCache = "DB: error - " + e.getMessage();
+            Log.e(TAG, "Error getting DB count: " + e.getMessage());
+        }
+    }
+
     private void logFaceDetails() {
         Log.d(TAG, "========== FRAME " + frameCount + " ==========");
         Log.d(TAG, "Total faces: " + faces.size() + " | Time: " + processingTimeMs + "ms");
 
-        // ✅ Log kiểm tra recognition có đang chạy không
         boolean hasRecognition = false;
         for (FaceResult face : faces) {
             if (face instanceof FaceRecognitionResult) {
@@ -121,8 +145,6 @@ public class FaceOverlayView extends View {
         }
         if (!hasRecognition) {
             Log.w(TAG, "⚠ NO FaceRecognitionResult found! Recognition might be DISABLED!");
-            Log.w(TAG, "  Check: config.enableRecognition = ?");
-            Log.w(TAG, "  Check: FaceDatabase has faces?");
         }
         Log.d(TAG, "==========================================");
     }
@@ -133,8 +155,13 @@ public class FaceOverlayView extends View {
 
         float vw = getWidth();
         float vh = getHeight();
+        
+        // ✅ Refresh DB info lần đầu nếu cần
+        if (dbInfoCache.equals("DB: ?")) {
+            refreshDbInfo();
+        }
 
-        // ✅ DEBUG CENTER: Luôn hiển thị trạng thái recognition ở giữa màn hình
+        // Vẽ debug center
         drawDebugCenter(canvas, vw, vh);
 
         if (faces.isEmpty()) {
@@ -148,12 +175,10 @@ public class FaceOverlayView extends View {
         drawStats(canvas, faces.size());
     }
 
-    // ✅ MỚI: Vẽ debug info ở GIỮA màn hình
     private void drawDebugCenter(Canvas canvas, float vw, float vh) {
         float centerX = vw / 2f;
         float centerY = vh / 2f;
 
-        // Kiểm tra có FaceRecognitionResult không
         boolean hasRecognition = false;
         String status = "RECOGNITION: OFF";
         int statusColor = Color.RED;
@@ -194,24 +219,16 @@ public class FaceOverlayView extends View {
                       centerX + textW / 2f + 20f, centerY + 10f),
             10f, 10f, bgPaint);
 
-        // Vẽ chữ
+        // Vẽ chữ status
         debugPaint.setColor(statusColor);
         canvas.drawText(status, centerX - textW / 2f, centerY, debugPaint);
 
-        // ✅ Thêm: hiển thị số face trong database
-        String dbInfo = "DB: ? faces";
-        try {
-            int dbCount = com.facedetectormulti.detection.FaceDatabase
-                .getInstance(getContext()).faceDao().getCount();
-            dbInfo = "DB: " + dbCount + " registered faces";
-        } catch (Exception e) {
-            dbInfo = "DB: ERROR";
-        }
+        // ✅ Vẽ DB info (dùng cache, an toàn)
         Paint smallPaint = new Paint(debugPaint);
         smallPaint.setTextSize(18f);
         smallPaint.setColor(Color.CYAN);
-        canvas.drawText(dbInfo, centerX - smallPaint.measureText(dbInfo) / 2f, 
-                       centerY + 30f, smallPaint);
+        float dbTextW = smallPaint.measureText(dbInfoCache);
+        canvas.drawText(dbInfoCache, centerX - dbTextW / 2f, centerY + 30f, smallPaint);
     }
 
     private void drawFace(Canvas canvas, FaceResult face, float vw, float vh) {
