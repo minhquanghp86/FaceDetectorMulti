@@ -43,10 +43,11 @@ public class FaceOverlayView extends View {
     private int frameCount = 0;
     private static final int LOG_INTERVAL = 30;
 
-    // ✅ Cache số lượng face trong DB để tránh gọi DB mỗi frame
-    private String dbInfoCache = "DB: ?";
+    // Cache số lượng face trong DB để tránh gọi DB liên tục
+    private String dbInfoCache = "DB: loading...";
     private int dbInfoFrameCounter = 0;
     private static final int DB_INFO_REFRESH_INTERVAL = 60; // Refresh mỗi 60 frame
+    private boolean dbInfoLoaded = false; // Đánh dấu đã load DB info chưa
 
     public FaceOverlayView(Context context) {
         super(context);
@@ -76,6 +77,9 @@ public class FaceOverlayView extends View {
         debugPaint.setColor(Color.YELLOW);
         debugPaint.setFakeBoldText(true);
         debugPaint.setShadowLayer(3f, 0, 0, Color.BLACK);
+        
+        // Load DB info ngay khi khởi tạo
+        refreshDbInfo();
     }
 
     public void update(List<? extends FaceResult> newFaces, long processingMs) {
@@ -83,15 +87,19 @@ public class FaceOverlayView extends View {
         this.processingTimeMs = processingMs;
 
         frameCount++;
+        
+        // Log định kỳ
         if (frameCount % LOG_INTERVAL == 0) {
             logFaceDetails();
         }
         
-        // ✅ Refresh DB info định kỳ
-        if (frameCount % DB_INFO_REFRESH_INTERVAL == 0) {
+        // Refresh DB info định kỳ (không gọi trong onDraw)
+        dbInfoFrameCounter++;
+        if (dbInfoFrameCounter >= DB_INFO_REFRESH_INTERVAL) {
+            dbInfoFrameCounter = 0;
             refreshDbInfo();
         }
-
+        
         postInvalidate();
     }
 
@@ -111,24 +119,37 @@ public class FaceOverlayView extends View {
         postInvalidate();
     }
 
-    // ✅ Lấy DB info an toàn
+    // ✅ Lấy DB info an toàn - CHẠY TRÊN BACKGROUND THREAD
     private void refreshDbInfo() {
         try {
-            Context ctx = getContext();
+            final Context ctx = getContext();
             if (ctx != null) {
-                int dbCount = com.facedetectormulti.detection.FaceDatabase
-                    .getInstance(ctx).faceDao().getCount();
-                dbInfoCache = "DB: " + dbCount + " faces";
+                // Chạy trên background thread
+                new Thread(() -> {
+                    try {
+                        int dbCount = com.facedetectormulti.detection.FaceDatabase
+                            .getInstance(ctx).faceDao().getCount();
+                        dbInfoCache = "DB: " + dbCount + " registered faces";
+                        dbInfoLoaded = true;
+                        Log.d(TAG, "DB count refreshed: " + dbCount);
+                    } catch (Exception e) {
+                        dbInfoCache = "DB: error - " + e.getMessage();
+                        Log.e(TAG, "Error getting DB count: " + e.getMessage());
+                    }
+                    // Cập nhật UI sau khi có kết quả
+                    postInvalidate();
+                }).start();
             }
         } catch (Exception e) {
-            dbInfoCache = "DB: error - " + e.getMessage();
-            Log.e(TAG, "Error getting DB count: " + e.getMessage());
+            dbInfoCache = "DB: init error - " + e.getMessage();
+            Log.e(TAG, "Error starting DB thread: " + e.getMessage());
         }
     }
 
     private void logFaceDetails() {
         Log.d(TAG, "========== FRAME " + frameCount + " ==========");
         Log.d(TAG, "Total faces: " + faces.size() + " | Time: " + processingTimeMs + "ms");
+        Log.d(TAG, "DB Status: " + dbInfoCache);
 
         boolean hasRecognition = false;
         for (FaceResult face : faces) {
@@ -155,11 +176,6 @@ public class FaceOverlayView extends View {
 
         float vw = getWidth();
         float vh = getHeight();
-        
-        // ✅ Refresh DB info lần đầu nếu cần
-        if (dbInfoCache.equals("DB: ?")) {
-            refreshDbInfo();
-        }
 
         // Vẽ debug center
         drawDebugCenter(canvas, vw, vh);
@@ -210,7 +226,7 @@ public class FaceOverlayView extends View {
             statusColor = Color.WHITE;
         }
 
-        // Vẽ nền
+        // Vẽ nền cho status
         Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         bgPaint.setColor(Color.argb(180, 0, 0, 0));
         float textW = debugPaint.measureText(status);
@@ -223,12 +239,21 @@ public class FaceOverlayView extends View {
         debugPaint.setColor(statusColor);
         canvas.drawText(status, centerX - textW / 2f, centerY, debugPaint);
 
-        // ✅ Vẽ DB info (dùng cache, an toàn)
+        // Vẽ DB info (dùng cache - không gọi DB trực tiếp)
         Paint smallPaint = new Paint(debugPaint);
         smallPaint.setTextSize(18f);
         smallPaint.setColor(Color.CYAN);
         float dbTextW = smallPaint.measureText(dbInfoCache);
-        canvas.drawText(dbInfoCache, centerX - dbTextW / 2f, centerY + 30f, smallPaint);
+        
+        // Vẽ nền cho DB info
+        Paint dbBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        dbBgPaint.setColor(Color.argb(150, 0, 0, 0));
+        canvas.drawRoundRect(
+            new RectF(centerX - dbTextW / 2f - 12f, centerY + 18f,
+                      centerX + dbTextW / 2f + 12f, centerY + 42f),
+            6f, 6f, dbBgPaint);
+        
+        canvas.drawText(dbInfoCache, centerX - dbTextW / 2f, centerY + 36f, smallPaint);
     }
 
     private void drawFace(Canvas canvas, FaceResult face, float vw, float vh) {
