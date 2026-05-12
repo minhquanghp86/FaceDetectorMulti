@@ -58,6 +58,18 @@
                     android:scaleType="centerCrop"
                     android:visibility="gone"
                     android:contentDescription="Captured face"/>
+                !-- ✅ Nút chuyển camera trước/sau -->
+                <ImageButton
+                    android:id="@+id/btnSwitchCamera"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="8dp"
+                    android:background="@android:drawable/btn_default"
+                    android:backgroundTint="#80000000"
+                    android:src="@drawable/ic_camera_switch"
+                    android:tint="#FFFFFF"
+                    android:contentDescription="Chuyển camera"/>
             </FrameLayout>
 
             <!-- Capture & Gallery Buttons -->
