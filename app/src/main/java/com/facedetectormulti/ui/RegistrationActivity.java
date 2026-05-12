@@ -31,6 +31,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.facedetectormulti.R;
+import com.facedetectormulti.detection.FaceDao;
 import com.facedetectormulti.detection.FaceDatabase;
 import com.facedetectormulti.detection.FaceEmbeddingExtractor;
 import com.facedetectormulti.detection.FaceResult;
