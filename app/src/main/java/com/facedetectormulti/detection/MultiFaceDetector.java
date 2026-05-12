@@ -17,8 +17,6 @@ import com.google.mlkit.vision.face.FaceDetectorOptions;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.facedetectormulti.detection.DetectionCallback;
-
 /**
  * Multi-face detector with face recognition support.
  * Uses ML Kit for detection + improved hybrid features for recognition.
@@ -26,7 +24,10 @@ import com.facedetectormulti.detection.DetectionCallback;
 public class MultiFaceDetector {
 
     private static final String TAG = "MultiFaceDetector";
-    private static final float RECOGNITION_THRESHOLD = 0.55f;
+    
+    // ✅ Threshold giờ là biến động, có thể chỉnh từ Settings
+    private float recognitionThreshold = 0.55f;
+    private static final float DEFAULT_RECOGNITION_THRESHOLD = 0.55f;
 
     public static class Config {
         public float minFaceSize = 0.12f;
@@ -49,7 +50,8 @@ public class MultiFaceDetector {
         public Config setMinConfidence(float conf) { 
             this.minConfidence = Math.max(0f, Math.min(1f, conf)); 
             return this; 
-        }        public Config setMinBoxAreaRatio(float ratio) { 
+        }
+        public Config setMinBoxAreaRatio(float ratio) { 
             this.minBoxAreaRatio = Math.max(0.001f, Math.min(0.05f, ratio)); 
             return this; 
         }
@@ -62,8 +64,6 @@ public class MultiFaceDetector {
             return this;
         }
     }
-
-    
 
     private final FaceDetector mlKitDetector;
     private final DetectionCallback callback;
@@ -80,13 +80,24 @@ public class MultiFaceDetector {
         this.callback = callback;
         this.context = context;
         this.config = config;
+        this.recognitionThreshold = DEFAULT_RECOGNITION_THRESHOLD;
         
         if (config.enableRecognition) {
             this.faceDao = FaceDatabase.getInstance(context).faceDao();
-            Log.d(TAG, "Recognition enabled");
+            Log.d(TAG, "Recognition enabled with threshold: " + recognitionThreshold);
         }
         this.mlKitDetector = createMlKitDetector(config);
         Log.d(TAG, "Initialized");
+    }
+
+    // ✅ Thêm method để update threshold từ Settings
+    public void setRecognitionThreshold(float threshold) {
+        this.recognitionThreshold = Math.max(0.10f, Math.min(0.95f, threshold));
+        Log.d(TAG, "Recognition threshold updated to: " + this.recognitionThreshold);
+    }
+    
+    public float getRecognitionThreshold() {
+        return this.recognitionThreshold;
     }
 
     private FaceDetector createMlKitDetector(Config cfg) {
@@ -96,7 +107,8 @@ public class MultiFaceDetector {
             .enableTracking();
         if (cfg.accurateMode) {
             builder.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE);
-        } else {            builder.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST);
+        } else {
+            builder.setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST);
         }
         return FaceDetection.getClient(builder.build());
     }
@@ -121,12 +133,11 @@ public class MultiFaceDetector {
             imageProxy.close(); return;
         }
 
-        // ✅ FIX: Create final copies for lambda - ALL must be final
         final boolean doRecognition = config.enableRecognition;
         final FaceDao dao = this.faceDao;
         final Config cfg = this.config;
+        final float threshold = this.recognitionThreshold; // ✅ Capture threshold
         
-        // ✅ KEY FIX: Single assignment with ternary + final keyword
         final Bitmap cameraBitmap = doRecognition ? imageProxyToBitmap(imageProxy) : null;
 
         InputImage image = InputImage.fromMediaImage(
@@ -140,17 +151,17 @@ public class MultiFaceDetector {
                 List<? extends FaceResult> results;
                 
                 if (doRecognition && dao != null && cameraBitmap != null) {
-                    results = recognizeFaces(faces, cameraBitmap, dao, imgW, imgH, cfg);
+                    results = recognizeFaces(faces, cameraBitmap, dao, imgW, imgH, cfg, threshold);
                 } else {
                     results = filterFaces(faces, imgW, imgH, cfg);
                 }
                 callback.onResult(results, dt, imgW, imgH);
-            })            .addOnFailureListener(e -> {
+            })
+            .addOnFailureListener(e -> {
                 Log.e(TAG, "Detection failed", e);
                 callback.onResult(new ArrayList<>(), System.currentTimeMillis() - t0, imgW, imgH);
             })
             .addOnCompleteListener(task -> {
-                // ✅ cameraBitmap is final, safe to use in lambda
                 if (cameraBitmap != null) cameraBitmap.recycle();
                 imageProxy.close();
             });
@@ -186,15 +197,26 @@ public class MultiFaceDetector {
         }
     }
 
+    // ✅ Sửa: thêm tham số threshold
     private List<FaceRecognitionResult> recognizeFaces(List<Face> faces, Bitmap cameraFrame,
-                                                       FaceDao dao, int imgW, int imgH, Config cfg) {
+                                                       FaceDao dao, int imgW, int imgH, Config cfg,
+                                                       float threshold) {
         List<FaceRecognitionResult> results = new ArrayList<>();
         List<RegisteredFace> registered = dao.getAllFaces();
+        
+        Log.d(TAG, "=== recognizeFaces called ===");
+        Log.d(TAG, "Detected faces: " + faces.size());
+        Log.d(TAG, "Registered faces in DB: " + registered.size());
+        Log.d(TAG, "Current threshold: " + threshold);
+        
+        if (registered.isEmpty()) {
+            Log.w(TAG, "⚠ DATABASE EMPTY! No registered faces to compare!");
+        }
         
         for (Face face : faces) {
             Rect box = face.getBoundingBox();
             if (box == null) continue;
-                        float area = box.width() * box.height();
+            float area = box.width() * box.height();
             if (area / (imgW * imgH) < cfg.minBoxAreaRatio) continue;
             float ratio = (float) box.width() / box.height();
             if (ratio < 0.4f || ratio > 2.5f) continue;
@@ -207,43 +229,62 @@ public class MultiFaceDetector {
                 face.getHeadEulerAngleY(), face.getHeadEulerAngleZ(), -1f, -1f, System.currentTimeMillis());
             
             Bitmap faceBmp = FaceEmbeddingExtractor.cropFace(cameraFrame, temp, 20);
-            if (faceBmp == null) continue;
+            if (faceBmp == null) {
+                Log.e(TAG, "cropFace returned NULL!");
+                continue;
+            }
+            
+            Log.d(TAG, "Face crop size: " + faceBmp.getWidth() + "x" + faceBmp.getHeight());
             
             float[] embedding = FaceEmbeddingExtractor.extract(faceBmp);
+            
+            Log.d(TAG, "Embedding length: " + embedding.length);
+            Log.d(TAG, "Embedding[0..4]: " + 
+                String.format("%.4f, %.4f, %.4f, %.4f, %.4f", 
+                    embedding[0], embedding[1], embedding[2], embedding[3], embedding[4]));
+            Log.d(TAG, "Embedding norm: " + getNorm(embedding));
+            
             float bestScore = 0f;
             RegisteredFace bestMatch = null;
             
             for (RegisteredFace r : registered) {
                 if (r.embedding != null && r.embedding.length == embedding.length) {
                     float score = RegisteredFace.similarity(embedding, r.embedding);
-                    Log.d(TAG, "Compare: " + r.name + " | Score: " + String.format("%.3f", score));
+                    Log.d(TAG, "  Compare with '" + r.name + "': " + String.format("%.4f", score));
                     if (score > bestScore) { 
                         bestScore = score; 
                         bestMatch = r; 
                     }
+                } else {
+                    Log.w(TAG, "  ⚠ '" + r.name + "' embedding NULL or length mismatch!");
                 }
             }
             
-            boolean matched = bestScore >= RECOGNITION_THRESHOLD;
+            boolean matched = bestScore >= threshold; // ✅ Dùng threshold động
             FaceRecognitionResult result = new FaceRecognitionResult(temp, matched,
                 matched ? bestMatch.name : null, bestScore, matched ? bestMatch.id : -1);
             results.add(result);
             
-            if (matched && bestMatch != null) {
-                Log.d(TAG, "✓ Recognized: " + bestMatch.name + " (" + String.format("%.1f", bestScore * 100) + "%)");
-            } else {
-                Log.d(TAG, "✗ Unknown (best: " + String.format("%.3f", bestScore) + ")");
-            }
+            Log.d(TAG, "  → RESULT: " + result.getDisplayLabel() + " (threshold: " + threshold + ")");
             
             if (matched && bestMatch != null) {
                 dao.incrementDetectionCount(bestMatch.id);
             }
             faceBmp.recycle();
         }
+        Log.d(TAG, "=== recognizeFaces done: " + results.size() + " results ===");
         return results;
     }
 
-    private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {        List<FaceResult> results = new ArrayList<>();
+    // ✅ Helper method tính norm
+    private float getNorm(float[] vec) {
+        float sum = 0;
+        for (float v : vec) sum += v * v;
+        return (float) Math.sqrt(sum);
+    }
+
+    private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {
+        List<FaceResult> results = new ArrayList<>();
         float imgArea = imgW * imgH;
         
         for (Face face : faces) {
@@ -278,6 +319,7 @@ public class MultiFaceDetector {
         if (enable && context != null && faceDao == null) {
             faceDao = FaceDatabase.getInstance(context).faceDao();
         }
+        Log.d(TAG, "Recognition " + (enable ? "enabled" : "disabled"));
     }
     
     public void close() {
