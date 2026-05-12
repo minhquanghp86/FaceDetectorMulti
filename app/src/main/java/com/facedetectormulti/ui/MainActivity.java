@@ -47,7 +47,8 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton switchCameraBtn;
     private ImageButton settingsBtn;
     private ImageButton registerBtn;
-    private ImageButton manageFacesBtn;    private TextView permissionDeniedText;  // ✅ Nullable - an toàn nếu layout thiếu
+    private ImageButton manageFacesBtn;
+    private TextView permissionDeniedText;
 
     // Core Objects
     private MultiFaceDetector detector;
@@ -87,16 +88,15 @@ public class MainActivity extends AppCompatActivity {
         settingsBtn = findViewById(R.id.settingsBtn);
         registerBtn = findViewById(R.id.registerBtn);
         
-        // ✅ Nullable: return null nếu ID không có trong layout
         manageFacesBtn = findViewById(R.id.manageFacesBtn);
-        permissionDeniedText = findViewById(R.id.permissionDeniedText);  // ✅ Cũng nullable
+        permissionDeniedText = findViewById(R.id.permissionDeniedText);
         
         updateOverlayMirror();
     }
 
     private void setupClickListeners() {
-        // 1. Switch Camera
-        switchCameraBtn.setOnClickListener(v -> {            currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
+        switchCameraBtn.setOnClickListener(v -> {
+            currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
                 ? CameraSelector.DEFAULT_BACK_CAMERA
                 : CameraSelector.DEFAULT_FRONT_CAMERA;
             
@@ -114,13 +114,11 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-        // 2. Open Settings
         settingsBtn.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivityForResult(intent, REQUEST_CODE_SETTINGS);
         });
 
-        // 3. Register Face
         registerBtn.setOnClickListener(v -> {
             if (lastDetectedFaces.isEmpty()) {
                 Toast.makeText(this, "⚠ Chưa phát hiện khuôn mặt nào", Toast.LENGTH_SHORT).show();
@@ -145,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "⚠ Không tìm thấy khuôn mặt hợp lệ", Toast.LENGTH_SHORT).show();
             }
         });
-        // 4. Manage Faces - nullable check
+
         if (manageFacesBtn != null) {
             manageFacesBtn.setOnClickListener(v -> {
                 Intent intent = new Intent(MainActivity.this, ManageFacesActivity.class);
@@ -153,7 +151,6 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        // 5. HUD Long-Click → Quick Settings
         hudTextView.setOnLongClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivityForResult(intent, REQUEST_CODE_SETTINGS);
@@ -194,7 +191,8 @@ public class MainActivity extends AppCompatActivity {
                 cameraProvider = future.get();
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
-                Log.e(TAG, "Camera start failed", e);                runOnUiThread(() -> 
+                Log.e(TAG, "Camera start failed", e);
+                runOnUiThread(() -> 
                     Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }, ContextCompat.getMainExecutor(this));
@@ -239,11 +237,17 @@ public class MainActivity extends AppCompatActivity {
         float minFaceSize = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.12f);
         float minConf = prefs.getFloat(SettingsActivity.KEY_MIN_CONFIDENCE, 0.5f);
         boolean accurate = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
-        boolean enableRec = prefs.getBoolean("pref_enable_recognition", false);
+        
+        // ✅ Đọc recognition settings
+        boolean enableRec = prefs.getBoolean(SettingsActivity.KEY_ENABLE_RECOGNITION, true);
+        float recThreshold = prefs.getFloat(SettingsActivity.KEY_RECOGNITION_THRESHOLD, 0.55f);
+
+        Log.d(TAG, "applySettings: enableRec=" + enableRec + ", threshold=" + recThreshold);
 
         MultiFaceDetector.Config current = detector != null ? detector.getCurrentConfig() : null;
         boolean needReinit = current == null ||
-            Math.abs(current.minFaceSize - minFaceSize) > 0.01f ||            Math.abs(current.minConfidence - minConf) > 0.05f ||
+            Math.abs(current.minFaceSize - minFaceSize) > 0.01f ||
+            Math.abs(current.minConfidence - minConf) > 0.05f ||
             current.accurateMode != accurate ||
             current.enableRecognition != enableRec;
 
@@ -269,9 +273,22 @@ public class MainActivity extends AppCompatActivity {
                 newCfg
             );
             
+            // ✅ Áp dụng threshold từ Settings
+            detector.setRecognitionThreshold(recThreshold);
+            
             if (cameraProvider != null) {
                 cameraProvider.unbindAll();
                 startCamera();
+            }
+        } else {
+            // ✅ Nếu không cần reinit, vẫn cập nhật threshold
+            if (detector != null) {
+                detector.setRecognitionThreshold(recThreshold);
+                
+                // Cập nhật recognition enable/disable
+                if (detector.getCurrentConfig().enableRecognition != enableRec) {
+                    detector.enableRecognition(enableRec);
+                }
             }
         }
     }
@@ -288,11 +305,13 @@ public class MainActivity extends AppCompatActivity {
             if (detector != null) {
                 detector.close();
                 initDetector();
+                applySettingsFromPrefs(); // ✅ Áp dụng lại settings sau khi reinit
             }
         }
     }
 
-    private boolean hasCameraPermission() {        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
             == PackageManager.PERMISSION_GRANTED;
     }
 
@@ -308,13 +327,11 @@ public class MainActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (requestCode == PERMISSION_CAMERA) {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-                // ✅ Nullable check: chỉ set visibility nếu view tồn tại
                 if (permissionDeniedText != null) {
                     permissionDeniedText.setVisibility(View.GONE);
                 }
                 startCamera();
             } else {
-                // ✅ Nullable check
                 if (permissionDeniedText != null) {
                     permissionDeniedText.setVisibility(View.VISIBLE);
                 }
@@ -329,6 +346,8 @@ public class MainActivity extends AppCompatActivity {
         if (hasCameraPermission() && cameraProvider != null) {
             startCamera();
         }
+        // ✅ Refresh settings khi quay lại
+        applySettingsFromPrefs();
     }
 
     @Override
@@ -341,7 +360,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();        if (detector != null) detector.close();
+        super.onDestroy();
+        if (detector != null) detector.close();
         if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
             cameraExecutor.shutdown();
         }
