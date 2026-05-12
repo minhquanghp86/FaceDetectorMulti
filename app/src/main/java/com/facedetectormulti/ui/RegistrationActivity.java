@@ -38,11 +38,6 @@ import com.facedetectormulti.detection.FaceDatabase;
 import com.facedetectormulti.detection.FaceEmbeddingExtractor;
 import com.facedetectormulti.detection.RegisteredFace;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.face.Face;
-import com.google.mlkit.vision.face.FaceDetection;
-import com.google.mlkit.vision.face.FaceDetector;
-import com.google.mlkit.vision.face.FaceDetectorOptions;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -68,8 +63,6 @@ public class RegistrationActivity extends AppCompatActivity {
     private ExecutorService cameraExecutor;
     private ProcessCameraProvider cameraProvider;
     private CameraSelector currentCamera = CameraSelector.DEFAULT_BACK_CAMERA;
-    
-    private FaceDetector faceDetector;
     private Bitmap capturedFace;
     private Bitmap latestFrame;
     private boolean isFrontCamera = false;
@@ -79,13 +72,11 @@ public class RegistrationActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_registration);
-        
         initViews();
-        initFaceDetector();
         initCameraExecutor();
         setupClickListeners();
         startCameraPreview();
-        addLog("✅ Sẵn sàng");
+        addLog("✅ Sẵn sàng - Chụp hoặc chọn ảnh");
     }
 
     private void initViews() {
@@ -106,16 +97,6 @@ public class RegistrationActivity extends AppCompatActivity {
         logBuilder.append(msg).append("\n");
         if (logBuilder.length() > 5000) logBuilder.delete(0, logBuilder.length() - 4000);
         runOnUiThread(() -> { if (tvDebugLog != null) tvDebugLog.setText(logBuilder.toString()); });
-    }
-
-    private void initFaceDetector() {
-        FaceDetectorOptions options = new FaceDetectorOptions.Builder()
-            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-            .setContourMode(FaceDetectorOptions.CONTOUR_MODE_NONE)
-            .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
-            .setMinFaceSize(0.15f)
-            .build();
-        faceDetector = FaceDetection.getClient(options);
     }
 
     private void initCameraExecutor() {
@@ -188,16 +169,13 @@ public class RegistrationActivity extends AppCompatActivity {
         cameraProvider.bindToLifecycle(this, currentCamera, preview, imageAnalysis);
     }
 
-    // ✅ Chuyển YUV → RGB chuẩn
     private Bitmap yuvToRgb(ImageProxy imageProxy) {
         try {
             android.media.Image image = imageProxy.getImage();
             if (image == null) return null;
+            int w = imageProxy.getWidth(), h = imageProxy.getHeight();
             
-            int w = imageProxy.getWidth();
-            int h = imageProxy.getHeight();
-            
-            // Đảm bảo kích thước chia hết cho 4
+            // Đảm bảo chia hết cho 4
             int safeW = w - (w % 4);
             int safeH = h - (h % 4);
             if (safeW < 4 || safeH < 4) { image.close(); return null; }
@@ -224,7 +202,9 @@ public class RegistrationActivity extends AppCompatActivity {
             yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, safeW, safeH), 95, out);
             
             byte[] jpegBytes = out.toByteArray();
-            Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length, opts);
             image.close();
             return bitmap;
         } catch (Exception e) {
@@ -238,127 +218,28 @@ public class RegistrationActivity extends AppCompatActivity {
                 Toast.makeText(this, "⚠ Chưa có khung hình", Toast.LENGTH_SHORT).show();
                 return;
             }
-            addLog("📸 Chụp: " + latestFrame.getWidth() + "x" + latestFrame.getHeight());
-            detectAndCropFace(latestFrame);
-        }, 300);
+            
+            // ✅ Cắt vùng giữa ảnh (mặt thường ở giữa)
+            int w = latestFrame.getWidth();
+            int h = latestFrame.getHeight();
+            int size = (int)(Math.min(w, h) * 0.6f); // 60% kích thước
+            int left = (w - size) / 2;
+            int top = (h - size) / 2;
+            
+            Bitmap cropped = Bitmap.createBitmap(latestFrame, left, top, size, size);
+            addLog("📸 Đã chụp: " + cropped.getWidth() + "x" + cropped.getHeight());
+            setCapturedFace(cropped);
+        }, 200);
     }
 
     private void pickImageFromGallery() {
         startActivityForResult(new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI).setType("image/*"), REQUEST_PICK_IMAGE);
     }
 
-    private void detectAndCropFace(Bitmap source) {
-        if (source == null || source.isRecycled()) {
-            Toast.makeText(this, "⚠ Ảnh lỗi", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        
-        btnCapture.setEnabled(false);
-        btnCapture.setText("⏳...");
-        
-        // ✅ Resize về kích thước CHIA HẾT CHO 4
-        int maxDim = 640;
-        int targetW = Math.min(source.getWidth(), maxDim);
-        int targetH = Math.min(source.getHeight(), maxDim);
-        // Đảm bảo chia hết cho 4
-        targetW = targetW - (targetW % 4);
-        targetH = targetH - (targetH % 4);
-        
-        final Bitmap processed;
-        if (source.getWidth() != targetW || source.getHeight() != targetH) {
-            processed = Bitmap.createScaledBitmap(source, targetW, targetH, true);
-        } else {
-            processed = source;
-        }
-        
-        addLog("🔍 Detect: " + processed.getWidth() + "x" + processed.getHeight());
-        
-        // ✅ Tạo bản copy để fallback
-        final Bitmap fallback;
-        try {
-            fallback = processed.copy(Bitmap.Config.ARGB_8888, true);
-        } catch (Exception e) {
-            addLog("❌ Copy lỗi");
-            btnCapture.setEnabled(true);
-            btnCapture.setText("📸 Chụp ảnh");
-            return;
-        }
-        
-        // ✅ Dùng Bitmap ARGB_8888 cho ML Kit
-        Bitmap argb = processed.copy(Bitmap.Config.ARGB_8888, false);
-        InputImage image = InputImage.fromBitmap(argb, 0);
-        
-        faceDetector.process(image)
-            .addOnSuccessListener(faces -> {
-                addLog("✅ ML Kit: " + faces.size() + " face");
-                btnCapture.setEnabled(true);
-                btnCapture.setText("📸 Chụp ảnh");
-                
-                if (!argb.isRecycled() && argb != processed) argb.recycle();
-                
-                if (faces.isEmpty()) {
-                    showNoFaceDialog(fallback);
-                    return;
-                }
-                
-                Face best = faces.get(0);
-                for (Face f : faces) {
-                    if (f.getBoundingBox().width() * f.getBoundingBox().height() > best.getBoundingBox().width() * best.getBoundingBox().height()) {
-                        best = f;
-                    }
-                }
-                
-                Rect box = best.getBoundingBox();
-                int m = (int)(Math.min(box.width(), box.height()) * 0.3f);
-                int l = Math.max(0, box.left - m);
-                int t = Math.max(0, box.top - m);
-                int r = Math.min(processed.getWidth(), box.right + m);
-                int b = Math.min(processed.getHeight(), box.bottom + m);
-                
-                try {
-                    Bitmap cropped = Bitmap.createBitmap(processed, l, t, r - l, b - t);
-                    addLog("✅ Crop: " + cropped.getWidth() + "x" + cropped.getHeight());
-                    setCapturedFace(cropped);
-                } catch (Exception e) {
-                    addLog("❌ Crop lỗi");
-                    showNoFaceDialog(fallback);
-                }
-            })
-            .addOnFailureListener(e -> {
-                addLog("❌ ML Kit: " + e.getMessage());
-                btnCapture.setEnabled(true);
-                btnCapture.setText("📸 Chụp ảnh");
-                if (!argb.isRecycled() && argb != processed) argb.recycle();
-                showNoFaceDialog(fallback);
-            });
-    }
-    
-    private void showNoFaceDialog(Bitmap bitmap) {
-        if (bitmap == null || bitmap.isRecycled()) {
-            Toast.makeText(this, "❌ Ảnh lỗi", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        new AlertDialog.Builder(this)
-            .setTitle("Không tìm thấy khuôn mặt")
-            .setMessage("Dùng toàn bộ ảnh để đăng ký?")
-            .setPositiveButton("Dùng ảnh này", (d, w) -> {
-                try {
-                    Bitmap copy = bitmap.copy(Bitmap.Config.ARGB_8888, true);
-                    if (copy != null) setCapturedFace(copy);
-                    else Toast.makeText(this, "❌ Lỗi", Toast.LENGTH_SHORT).show();
-                } catch (Exception e) {
-                    Toast.makeText(this, "❌ Lỗi", Toast.LENGTH_SHORT).show();
-                }
-            })
-            .setNegativeButton("Thử lại", null)
-            .show();
-    }
-
     private void setCapturedFace(Bitmap face) {
         if (capturedFace != null && !capturedFace.isRecycled() && capturedFace != face) capturedFace.recycle();
         this.capturedFace = face;
         ivPreview.setImageBitmap(face);
-        // ✅ Ẩn camera preview, HIỆN ảnh preview
         cameraPreview.setVisibility(View.GONE);
         ivPreview.setVisibility(View.VISIBLE);
         btnCapture.setEnabled(false);
@@ -423,16 +304,22 @@ public class RegistrationActivity extends AppCompatActivity {
                         BitmapFactory.decodeStream(is, null, opts);
                         is.close();
                         
+                        // Resize về max 640
                         opts.inSampleSize = calculateInSampleSize(opts, 640, 640);
                         opts.inJustDecodeBounds = false;
+                        opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
                         
                         is = getContentResolver().openInputStream(uri);
                         final Bitmap bitmap = BitmapFactory.decodeStream(is, null, opts);
                         is.close();
                         
                         runOnUiThread(() -> {
-                            if (bitmap != null) detectAndCropFace(bitmap);
-                            else Toast.makeText(this, "❌ Lỗi đọc ảnh", Toast.LENGTH_SHORT).show();
+                            if (bitmap != null) {
+                                addLog("📷 Gallery: " + bitmap.getWidth() + "x" + bitmap.getHeight());
+                                setCapturedFace(bitmap);
+                            } else {
+                                Toast.makeText(this, "❌ Lỗi đọc ảnh", Toast.LENGTH_SHORT).show();
+                            }
                         });
                     } catch (Exception e) {
                         runOnUiThread(() -> Toast.makeText(this, "❌ " + e.getMessage(), Toast.LENGTH_SHORT).show());
@@ -464,7 +351,6 @@ public class RegistrationActivity extends AppCompatActivity {
         super.onDestroy();
         if (capturedFace != null && !capturedFace.isRecycled()) capturedFace.recycle();
         if (latestFrame != null && !latestFrame.isRecycled()) latestFrame.recycle();
-        if (faceDetector != null) faceDetector.close();
         if (cameraExecutor != null) cameraExecutor.shutdown();
     }
 }
