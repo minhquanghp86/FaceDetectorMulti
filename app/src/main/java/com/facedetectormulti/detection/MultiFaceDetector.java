@@ -120,6 +120,7 @@ public class MultiFaceDetector {
         return FaceDetection.getClient(builder.build());
     }
 
+    // ✅ ĐÃ SỬA: Không gọi imageProxyToBitmap() trước ML Kit
     public void process(@NonNull ImageProxy imageProxy) {
         if (isShutdown) { 
             imageProxy.close(); 
@@ -149,7 +150,9 @@ public class MultiFaceDetector {
             final FaceDao dao = this.faceDao;
             final Config cfg = this.config;
             final float threshold = this.recognitionThreshold;
-            final Bitmap cameraBitmap = doRecognition ? imageProxyToBitmap(imageProxy) : null;
+
+            // ✅ KHÔNG gọi imageProxyToBitmap() ở đây nữa!
+            // ML Kit cần ImageProxy gốc để detect
 
             InputImage image = InputImage.fromMediaImage(
                 imageProxy.getImage(),
@@ -158,12 +161,13 @@ public class MultiFaceDetector {
 
             mlKitDetector.process(image)
                 .addOnSuccessListener(faces -> {
-                    try {
-                        if (doRecognition && dao != null && cameraBitmap != null) {
-                            // Chạy recognition trên background thread
+                    if (doRecognition && dao != null) {
+                        // ✅ Chỉ convert bitmap SAU KHI ML Kit đã detect xong
+                        final Bitmap cameraBitmap = imageProxyToBitmap(imageProxy);
+                        
+                        if (cameraBitmap != null) {
                             recognitionExecutor.execute(() -> {
                                 try {
-                                    long bgStart = System.currentTimeMillis();
                                     List<? extends FaceResult> results = recognizeFaces(
                                         faces, cameraBitmap, dao, imgW, imgH, cfg, threshold);
                                     long totalTime = System.currentTimeMillis() - t0;
@@ -188,20 +192,22 @@ public class MultiFaceDetector {
                                 }
                             });
                         } else {
-                            // Không recognition
+                            // Fallback: không convert được bitmap
                             List<FaceResult> results = filterFaces(faces, imgW, imgH, cfg);
                             long dt = System.currentTimeMillis() - t0;
                             callback.onResult(results, dt, imgW, imgH);
                             imageProxy.close();
                         }
-                    } catch (Exception e) {
-                        Log.e(TAG, "onSuccess error: " + e.getMessage(), e);
-                        callback.onResult(new ArrayList<>(), 0, imgW, imgH);
+                    } else {
+                        // Không recognition
+                        List<FaceResult> results = filterFaces(faces, imgW, imgH, cfg);
+                        long dt = System.currentTimeMillis() - t0;
+                        callback.onResult(results, dt, imgW, imgH);
                         imageProxy.close();
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "Detection failed", e);
+                    Log.e(TAG, "Detection failed: " + e.getMessage());
                     callback.onResult(new ArrayList<>(), System.currentTimeMillis() - t0, imgW, imgH);
                     imageProxy.close();
                 });
@@ -341,12 +347,6 @@ public class MultiFaceDetector {
         
         Log.d(TAG, "=== recognizeFaces done: " + results.size() + " results ===");
         return results;
-    }
-
-    private float getNorm(float[] vec) {
-        float sum = 0;
-        for (float v : vec) sum += v * v;
-        return (float) Math.sqrt(sum);
     }
 
     private List<FaceResult> filterFaces(List<Face> faces, int imgW, int imgH, Config cfg) {
