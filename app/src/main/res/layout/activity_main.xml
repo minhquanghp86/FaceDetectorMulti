@@ -32,6 +32,7 @@
         android:textColor="@android:color/white"
         android:textSize="12sp"
         android:fontFamily="monospace"
+        android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:text="Faces: 2 | FPS: 15 | Time: 67ms" />
@@ -63,8 +64,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Thêm vào activity_main.xml, gần settingsBtn -->
-
     <ImageButton
         android:id="@+id/manageFacesBtn"
         android:layout_width="48dp"
@@ -77,7 +76,6 @@
         android:tint="#00AAFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
-
 
     <ImageButton
         android:id="@+id/registerBtn"
