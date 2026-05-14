@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * MqttManager - Kết nối và publish kết quả phát hiện khuôn mặt
- * Đã tối ưu cho EMQX trong Home Assistant
+ * Hỗ trợ EMQX + MQTT Discovery cho Home Assistant
  */
 public class MqttManager {
 
@@ -61,9 +61,9 @@ public class MqttManager {
             if (url.isEmpty()) {
                 url = "tcp://192.168.1.100:1883";
             } else if (url.contains(":")) {
-                url = "tcp://" + url;           // IP:port
+                url = "tcp://" + url;
             } else {
-                url = "tcp://" + url + ":1883"; // Chỉ IP
+                url = "tcp://" + url + ":1883";
             }
         }
 
@@ -114,6 +114,9 @@ public class MqttManager {
                 public void connectComplete(boolean reconnect, String serverURI) {
                     setState(State.CONNECTED, "Kết nối thành công " + serverURI);
                     Log.i(TAG, "MQTT Connected: " + serverURI);
+                    
+                    // Publish Discovery cho Home Assistant
+                    executor.execute(MqttManager.this::publishDiscovery);
                 }
 
                 @Override
@@ -145,8 +148,49 @@ public class MqttManager {
             client.connect(opts).waitForCompletion(15000);
 
         } catch (Exception e) {
-            Log.e(TAG, "Connect failed: " + e.getMessage(), e);
+            Log.e(TAG, "Connect failed", e);
             setState(State.ERROR, "Lỗi kết nối: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Publish MQTT Discovery để tạo thiết bị trong Home Assistant
+     */
+    private void publishDiscovery() {
+        try {
+            String deviceName = android.os.Build.MODEL;
+            String uniqueId = "face_detector_" + System.currentTimeMillis();
+
+            String discoveryTopic = "homeassistant/sensor/face_detector_count/config";
+
+            String discoveryPayload = "{\n" +
+                    "  \"device\": {\n" +
+                    "    \"identifiers\": [\"face_detector_android\"],\n" +
+                    "    \"name\": \"Face Detector\",\n" +
+                    "    \"manufacturer\": \"FaceDetectorMulti\",\n" +
+                    "    \"model\": \"" + deviceName + "\",\n" +
+                    "    \"sw_version\": \"1.0\"\n" +
+                    "  },\n" +
+                    "  \"name\": \"Số người phát hiện\",\n" +
+                    "  \"state_topic\": \"" + topic + "\",\n" +
+                    "  \"value_template\": \"{{ value_json.count }}\",\n" +
+                    "  \"unique_id\": \"" + uniqueId + "\",\n" +
+                    "  \"icon\": \"mdi:account-multiple\",\n" +
+                    "  \"unit_of_measurement\": \"người\",\n" +
+                    "  \"availability_topic\": \"" + topic + "/availability\",\n" +
+                    "  \"payload_available\": \"online\",\n" +
+                    "  \"payload_not_available\": \"offline\"\n" +
+                    "}";
+
+            MqttMessage msg = new MqttMessage(discoveryPayload.getBytes("UTF-8"));
+            msg.setQos(1);
+            msg.setRetained(true);
+            
+            client.publish(discoveryTopic, msg);
+            Log.i(TAG, "✅ Đã publish MQTT Discovery cho Home Assistant");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Publish discovery failed", e);
         }
     }
 
