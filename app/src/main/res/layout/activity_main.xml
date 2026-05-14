@@ -25,7 +25,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Chuyển camera"
         android:src="@drawable/ic_camera_switch"
-        android:tint="@android:color/white"
+        android:tint="#00AAFF"                    <!-- Đổi sang xanh lam -->
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
@@ -39,7 +39,7 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Cài đặt"
         android:src="@android:drawable/ic_menu_preferences"
-        android:tint="@android:color/white"
+        android:tint="#00AAFF"                    <!-- Đổi sang xanh lam -->
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
