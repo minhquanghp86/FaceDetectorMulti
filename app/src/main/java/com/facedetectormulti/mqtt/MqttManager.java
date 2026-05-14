@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Tối ưu cho Home Assistant
+ * MqttManager - Phiên bản tối ưu cuối cho Home Assistant
  */
 public class MqttManager {
 
@@ -140,25 +140,31 @@ public class MqttManager {
         try {
             // 1. Binary Sensor: Person Detect
             publishEntity("binary_sensor", "person_detected",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Person Detect\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"person_detected\",\"icon\":\"mdi:account-multiple\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Person Detect\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"person_detected\",\"icon\":\"mdi:account-multiple\",\"availability_topic\":\""+baseTopic+"/availability\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}");
 
             // 2. Sensor: Số người
             publishEntity("sensor", "person_count",
                 "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\"}");
 
-            // 3. Sensor: Center X
+            // 3. Sensor: Face Center X
             publishEntity("sensor", "face_center_x",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center X\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\",\"unique_id\":\"face_center_x\",\"unit_of_measurement\":\"\",\"icon\":\"mdi:axis-x-arrow\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center X\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\",\"unique_id\":\"face_center_x\",\"icon\":\"mdi:axis-x-arrow\"}");
 
-            // 4. Sensor: Center Y
+            // 4. Sensor: Face Center Y
             publishEntity("sensor", "face_center_y",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center Y\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\",\"unique_id\":\"face_center_y\",\"unit_of_measurement\":\"\",\"icon\":\"mdi:axis-y-arrow\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center Y\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\",\"unique_id\":\"face_center_y\",\"icon\":\"mdi:axis-y-arrow\"}");
 
-            // 5. Sensor: Chi tiết khuôn mặt (JSON)
+            // 5. Chi tiết khuôn mặt
             publishEntity("sensor", "face_details",
                 "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\"}");
 
-            Log.i(TAG, "✅ Đã publish 5 thực thể Discovery");
+            // Publish availability
+            MqttMessage avail = new MqttMessage("online".getBytes("UTF-8"));
+            avail.setQos(1);
+            avail.setRetained(true);
+            client.publish(baseTopic + "/availability", avail);
+
+            Log.i(TAG, "✅ Đã publish đầy đủ Discovery");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
