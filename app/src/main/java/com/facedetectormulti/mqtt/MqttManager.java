@@ -185,6 +185,7 @@ public class MqttManager {
                     + "\"device_class\":\"occupancy\","
                     + "\"state_topic\":\"" + baseTopic + "\","
                     + "\"value_template\":\"{% if value_json.count > 0 %}ON{% else %}OFF{% endif %}\","
+                    + "\"off_delay\":5,"
                     + "\"unique_id\":\"" + deviceId + "_person_detected\","
                     + "\"icon\":\"mdi:account-multiple\""
                     + availJson
@@ -202,6 +203,7 @@ public class MqttManager {
                     + "\"name\":\"Số người phát hiện\","
                     + "\"state_topic\":\"" + baseTopic + "\","
                     + "\"value_template\":\"{{ value_json.count }}\","
+                    + "\"expire_after\":5,"
                     + "\"json_attributes_topic\":\"" + baseTopic + "\","
                     + "\"json_attributes_template\":\"{{ value_json | tojson }}\","
                     + "\"unique_id\":\"" + deviceId + "_person_count\","
@@ -220,6 +222,7 @@ public class MqttManager {
                     + "\"name\":\"Face Center X\","
                     + "\"state_topic\":\"" + baseTopic + "\","
                     + "\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\","
+                    + "\"expire_after\":5,"
                     + "\"unique_id\":\"" + deviceId + "_face_center_x\","
                     + "\"icon\":\"mdi:axis-x-arrow\""
                     + availJson
@@ -235,6 +238,7 @@ public class MqttManager {
                     + "\"name\":\"Face Center Y\","
                     + "\"state_topic\":\"" + baseTopic + "\","
                     + "\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\","
+                    + "\"expire_after\":5,"
                     + "\"unique_id\":\"" + deviceId + "_face_center_y\","
                     + "\"icon\":\"mdi:axis-y-arrow\""
                     + availJson
