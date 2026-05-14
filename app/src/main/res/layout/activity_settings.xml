@@ -167,7 +167,7 @@
                 android:text="50ms"/>
         </LinearLayout>
 
-        <!-- MQTT Publish Interval - MỚI THÊM -->
+        <!-- MQTT Publish Interval -->
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
@@ -209,10 +209,10 @@
                 android:text="250ms"/>
         </LinearLayout>
 
-        <!-- MQTT Section -->
         <View android:layout_width="match_parent" android:layout_height="2dp"
             android:background="#00AAFF" android:layout_marginVertical="20dp"/>
 
+        <!-- KẾT NỐI MQTT -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -244,9 +244,7 @@
             android:trackTint="@color/switch_track"
             android:paddingBottom="16dp"/>
 
-        <!-- Các trường MQTT còn lại giữ nguyên -->
-        <!-- Broker URL, Username, Password, Topic, QoS ... (giữ nguyên như file trước) -->
-
+        <!-- Broker URL -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -269,7 +267,112 @@
             android:singleLine="true"
             android:layout_marginBottom="12dp"/>
 
-        <!-- Username, Password, Topic, QoS giữ nguyên như file trước -->
+        <!-- Username -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Username (để trống nếu không có xác thực)"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_username"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="username"
+            android:textColorHint="#555555"
+            android:inputType="text"
+            android:padding="10dp"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Password -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Password"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_password"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="password"
+            android:textColorHint="#555555"
+            android:inputType="textPassword"
+            android:padding="10dp"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Topic -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Topic"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_topic"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="face/detection"
+            android:textColorHint="#555555"
+            android:inputType="text"
+            android:padding="10dp"
+            android:text="face/detection"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- QoS -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="QoS"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <RadioGroup
+            android:id="@+id/rg_mqtt_qos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/rb_qos_0"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 0 (nhanh nhất)"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"
+                android:checked="true"
+                android:layout_marginEnd="12dp"/>
+            <RadioButton
+                android:id="@+id/rb_qos_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 1"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"
+                android:layout_marginEnd="12dp"/>
+            <RadioButton
+                android:id="@+id/rb_qos_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 2"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"/>
+        </RadioGroup>
 
         <!-- Reset -->
         <View android:layout_width="match_parent" android:layout_height="1dp"
