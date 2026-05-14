@@ -41,7 +41,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -149,6 +148,8 @@ public class RegistrationActivity extends AppCompatActivity {
             .build();
         
         imageAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
+            // yuvToRgb() dùng toBitmap() - đã tự close imageProxy bên trong
+            // KHÔNG gọi imageProxy.close() ở đây, tránh double-close crash
             Bitmap bitmap = yuvToRgb(imageProxy);
             if (bitmap != null) {
                 if (isFrontCamera) {
@@ -163,53 +164,35 @@ public class RegistrationActivity extends AppCompatActivity {
                     latestFrame = bitmap;
                 }
             }
-            imageProxy.close();
         });
         
         cameraProvider.bindToLifecycle(this, currentCamera, preview, imageAnalysis);
     }
 
     private Bitmap yuvToRgb(ImageProxy imageProxy) {
+        // Dùng toBitmap() của CameraX - tự xử lý YUV_420_888 đúng stride/pixelStride
+        // Tránh lỗi sọc màu do copy UV plane thủ công không đúng pixelStride
         try {
-            android.media.Image image = imageProxy.getImage();
-            if (image == null) return null;
-            int w = imageProxy.getWidth(), h = imageProxy.getHeight();
-            
-            // Đảm bảo chia hết cho 4
-            int safeW = w - (w % 4);
-            int safeH = h - (h % 4);
-            if (safeW < 4 || safeH < 4) { image.close(); return null; }
-            
-            android.media.Image.Plane[] planes = image.getPlanes();
-            if (planes.length < 3) { image.close(); return null; }
-            
-            ByteBuffer yBuf = planes[0].getBuffer();
-            ByteBuffer uBuf = planes[1].getBuffer();
-            ByteBuffer vBuf = planes[2].getBuffer();
-            
-            int ySize = yBuf.remaining();
-            int uSize = uBuf.remaining();
-            int vSize = vBuf.remaining();
-            
-            byte[] nv21 = new byte[ySize + uSize + vSize];
-            yBuf.get(nv21, 0, ySize);
-            vBuf.get(nv21, ySize, vSize);
-            uBuf.get(nv21, ySize + vSize, uSize);
-            
-            android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
-                nv21, android.graphics.ImageFormat.NV21, safeW, safeH, null);
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            yuvImage.compressToJpeg(new android.graphics.Rect(0, 0, safeW, safeH), 95, out);
-            
-            byte[] jpegBytes = out.toByteArray();
-            BitmapFactory.Options opts = new BitmapFactory.Options();
-            opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
-            Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length, opts);
-            image.close();
+            Bitmap bitmap = imageProxy.toBitmap();
+            if (bitmap == null) return null;
+
+            // Xử lý rotation: CameraX ImageAnalysis thường trả frame bị xoay
+            int rotation = imageProxy.getImageInfo().getRotationDegrees();
+            if (rotation != 0) {
+                Matrix matrix = new Matrix();
+                matrix.postRotate(rotation);
+                Bitmap rotated = Bitmap.createBitmap(
+                    bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+                bitmap.recycle();
+                return rotated;
+            }
             return bitmap;
         } catch (Exception e) {
+            addLog("❌ yuvToRgb: " + e.getMessage());
             return null;
         }
+        // Lưu ý: KHÔNG gọi imageProxy.close() ở đây
+        // toBitmap() đã tự close, nếu gọi thêm sẽ crash
     }
 
     private void captureFromCamera() {
