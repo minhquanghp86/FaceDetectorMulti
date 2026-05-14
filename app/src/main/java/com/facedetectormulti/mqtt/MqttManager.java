@@ -15,8 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Kết nối và publish kết quả phát hiện khuôn mặt
- * Hỗ trợ EMQX + MQTT Discovery cho Home Assistant
+ * MqttManager - Hỗ trợ MQTT Discovery đầy đủ cho Home Assistant
  */
 public class MqttManager {
 
@@ -32,11 +31,10 @@ public class MqttManager {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private StateListener stateListener;
 
-    // Config
     private String brokerUrl = "tcp://192.168.1.100:1883";
     private String username = "";
     private String password = "";
-    private String topic = "face/detection";
+    private String baseTopic = "face/detection";
     private int qos = 0;
     private long minPublishIntervalMs = 250;
 
@@ -48,35 +46,24 @@ public class MqttManager {
         this.stateListener = listener;
     }
 
-    /**
-     * Cấu hình MQTT - Tự động sửa URL cho EMQX
-     */
     public void configure(String brokerInput, String username, String password,
                           String topic, int qos, long publishIntervalMs) {
         
         String url = (brokerInput != null ? brokerInput.trim() : "");
-        
-        // Tự động thêm scheme nếu thiếu
         if (!url.startsWith("tcp://") && !url.startsWith("ws://") && !url.startsWith("ssl://")) {
-            if (url.isEmpty()) {
-                url = "tcp://192.168.1.100:1883";
-            } else if (url.contains(":")) {
-                url = "tcp://" + url;
-            } else {
-                url = "tcp://" + url + ":1883";
-            }
+            if (url.isEmpty()) url = "tcp://192.168.1.100:1883";
+            else if (url.contains(":")) url = "tcp://" + url;
+            else url = "tcp://" + url + ":1883";
         }
 
         this.brokerUrl = url;
         this.username = username != null ? username.trim() : "";
         this.password = password != null ? password : "";
-        this.topic = topic != null ? topic.trim() : "face/detection";
+        this.baseTopic = topic != null ? topic.trim() : "face/detection";
         this.qos = Math.max(0, Math.min(2, qos));
         this.minPublishIntervalMs = Math.max(100, publishIntervalMs);
 
-        Log.i(TAG, "MQTT Configured → " + this.brokerUrl 
-                   + " | QoS=" + this.qos 
-                   + " | Interval=" + this.minPublishIntervalMs + "ms");
+        Log.i(TAG, "MQTT Configured → " + this.brokerUrl);
     }
 
     public void connect() {
@@ -112,21 +99,15 @@ public class MqttManager {
             client.setCallback(new MqttCallbackExtended() {
                 @Override
                 public void connectComplete(boolean reconnect, String serverURI) {
-                    setState(State.CONNECTED, "Kết nối thành công " + serverURI);
-                    Log.i(TAG, "MQTT Connected: " + serverURI);
-                    
-                    // Publish Discovery cho Home Assistant
+                    setState(State.CONNECTED, "Kết nối thành công");
+                    Log.i(TAG, "MQTT Connected");
                     executor.execute(MqttManager.this::publishDiscovery);
                 }
 
                 @Override
                 public void connectionLost(Throwable cause) {
                     Log.w(TAG, "Connection lost", cause);
-                    if (enabled.get()) {
-                        setState(State.CONNECTING, "Mất kết nối, đang thử lại...");
-                    } else {
-                        setState(State.DISCONNECTED, "Ngắt kết nối");
-                    }
+                    if (enabled.get()) setState(State.CONNECTING, "Mất kết nối, đang thử lại...");
                 }
 
                 @Override public void messageArrived(String topic, MqttMessage message) {}
@@ -144,54 +125,57 @@ public class MqttManager {
                 opts.setPassword(password.toCharArray());
             }
 
-            Log.d(TAG, "Attempting to connect to: " + brokerUrl);
             client.connect(opts).waitForCompletion(15000);
 
         } catch (Exception e) {
             Log.e(TAG, "Connect failed", e);
-            setState(State.ERROR, "Lỗi kết nối: " + e.getMessage());
+            setState(State.ERROR, "Lỗi: " + e.getMessage());
         }
     }
 
     /**
-     * Publish MQTT Discovery để tạo thiết bị trong Home Assistant
+     * Publish MQTT Discovery (tạo nhiều thực thể trong HA)
      */
     private void publishDiscovery() {
         try {
-            String deviceName = android.os.Build.MODEL;
-            String uniqueId = "face_detector_" + System.currentTimeMillis();
+            String deviceId = "face_detector_android";
 
-            String discoveryTopic = "homeassistant/sensor/face_detector_count/config";
+            // 1. Binary Sensor: Có người hay không
+            publishEntity("binary_sensor", "face_detected", 
+                "{\n" +
+                "  \"device\": {\"identifiers\": [\""+deviceId+"\"], \"name\": \"Face Detector\", \"manufacturer\": \"FaceDetectorMulti\"},\n" +
+                "  \"name\": \"Có người\",\n" +
+                "  \"state_topic\": \""+baseTopic+"\",\n" +
+                "  \"value_template\": \"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\n" +
+                "  \"unique_id\": \"face_detector_detected\",\n" +
+                "  \"icon\": \"mdi:account-multiple\"\n" +
+                "}");
 
-            String discoveryPayload = "{\n" +
-                    "  \"device\": {\n" +
-                    "    \"identifiers\": [\"face_detector_android\"],\n" +
-                    "    \"name\": \"Face Detector\",\n" +
-                    "    \"manufacturer\": \"FaceDetectorMulti\",\n" +
-                    "    \"model\": \"" + deviceName + "\",\n" +
-                    "    \"sw_version\": \"1.0\"\n" +
-                    "  },\n" +
-                    "  \"name\": \"Số người phát hiện\",\n" +
-                    "  \"state_topic\": \"" + topic + "\",\n" +
-                    "  \"value_template\": \"{{ value_json.count }}\",\n" +
-                    "  \"unique_id\": \"" + uniqueId + "\",\n" +
-                    "  \"icon\": \"mdi:account-multiple\",\n" +
-                    "  \"unit_of_measurement\": \"người\",\n" +
-                    "  \"availability_topic\": \"" + topic + "/availability\",\n" +
-                    "  \"payload_available\": \"online\",\n" +
-                    "  \"payload_not_available\": \"offline\"\n" +
-                    "}";
+            // 2. Sensor: Số người
+            publishEntity("sensor", "person_count", 
+                "{\n" +
+                "  \"device\": {\"identifiers\": [\""+deviceId+"\"]},\n" +
+                "  \"name\": \"Số người phát hiện\",\n" +
+                "  \"state_topic\": \""+baseTopic+"\",\n" +
+                "  \"value_template\": \"{{ value_json.count }}\",\n" +
+                "  \"unique_id\": \"face_detector_count\",\n" +
+                "  \"unit_of_measurement\": \"người\",\n" +
+                "  \"icon\": \"mdi:account-multiple\"\n" +
+                "}");
 
-            MqttMessage msg = new MqttMessage(discoveryPayload.getBytes("UTF-8"));
-            msg.setQos(1);
-            msg.setRetained(true);
-            
-            client.publish(discoveryTopic, msg);
-            Log.i(TAG, "✅ Đã publish MQTT Discovery cho Home Assistant");
+            Log.i(TAG, "✅ Đã publish MQTT Discovery (Binary Sensor + Sensor)");
 
         } catch (Exception e) {
-            Log.e(TAG, "Publish discovery failed", e);
+            Log.e(TAG, "Discovery failed", e);
         }
+    }
+
+    private void publishEntity(String domain, String objectId, String payload) throws Exception {
+        String topic = "homeassistant/" + domain + "/" + objectId + "/config";
+        MqttMessage msg = new MqttMessage(payload.getBytes("UTF-8"));
+        msg.setQos(1);
+        msg.setRetained(true);
+        client.publish(topic, msg);
     }
 
     public void publishDetection(List<? extends FaceResult> faces, long processingMs) {
@@ -202,15 +186,13 @@ public class MqttManager {
         lastPublishTime = now;
 
         final String payload = buildPayload(faces, processingMs, now);
-        final int pubQos = this.qos;
-        final String pubTopic = this.topic;
 
         executor.execute(() -> {
             try {
                 MqttMessage msg = new MqttMessage(payload.getBytes("UTF-8"));
-                msg.setQos(pubQos);
+                msg.setQos(qos);
                 msg.setRetained(false);
-                client.publish(pubTopic, msg);
+                client.publish(baseTopic, msg);
             } catch (Exception e) {
                 Log.w(TAG, "Publish failed", e);
             }
@@ -218,7 +200,7 @@ public class MqttManager {
     }
 
     private String buildPayload(List<? extends FaceResult> faces, long processingMs, long now) {
-        StringBuilder sb = new StringBuilder(256);
+        StringBuilder sb = new StringBuilder(512);
         sb.append("{\"ts\":").append(now)
           .append(",\"count\":").append(faces.size())
           .append(",\"ms\":").append(processingMs)
@@ -228,10 +210,10 @@ public class MqttManager {
             if (i > 0) sb.append(",");
             FaceResult f = faces.get(i);
             sb.append("{\"id\":").append(f.trackingId)
-              .append(",\"left\":").append(String.format("%.3f", f.boxNorm[0]))
-              .append(",\"top\":").append(String.format("%.3f", f.boxNorm[1]))
-              .append(",\"right\":").append(String.format("%.3f", f.boxNorm[2]))
-              .append(",\"bottom\":").append(String.format("%.3f", f.boxNorm[3]))
+              .append(",\"cx\":").append(String.format("%.3f", f.centerX()))
+              .append(",\"cy\":").append(String.format("%.3f", f.centerY()))
+              .append(",\"w\":").append(String.format("%.3f", f.width()))
+              .append(",\"h\":").append(String.format("%.3f", f.height()))
               .append("}");
         }
         sb.append("]}");
@@ -241,9 +223,7 @@ public class MqttManager {
     private void setState(State state, String msg) {
         currentState = state;
         Log.d(TAG, "State: " + state + " | " + msg);
-        if (stateListener != null) {
-            stateListener.onStateChanged(state, msg);
-        }
+        if (stateListener != null) stateListener.onStateChanged(state, msg);
     }
 
     public State getState() { return currentState; }
