@@ -327,7 +327,7 @@
                 android:buttonTint="#00AAFF"/>
         </RadioGroup>
 
-        <<TextView
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="📋 Payload mẫu: {&quot;ts&quot;:1234567890,&quot;count&quot;:1,&quot;ms&quot;:45,&quot;faces&quot;:[{&quot;id&quot;:1,&quot;left&quot;:0.12,&quot;top&quot;:0.20,&quot;right&quot;:0.38,&quot;bottom&quot;:0.68,&quot;cx&quot;:0.25,&quot;cy&quot;:0.44,&quot;w&quot;:0.26,&quot;h&quot;:0.48}]}"
