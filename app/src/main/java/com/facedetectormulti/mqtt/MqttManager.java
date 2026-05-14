@@ -134,16 +134,16 @@ public class MqttManager {
     }
 
     /**
-     * Publish MQTT Discovery (tạo nhiều thực thể trong HA)
+     * Publish đầy đủ Discovery
      */
     private void publishDiscovery() {
-        try {
-            String deviceId = "face_detector_android";
+        String deviceId = "face_detector_android";
 
-            // 1. Binary Sensor: Có người hay không
-            publishEntity("binary_sensor", "face_detected", 
+        try {
+            // 1. Binary Sensor: Có người / Không người
+            publishEntity("binary_sensor", "face_detected",
                 "{\n" +
-                "  \"device\": {\"identifiers\": [\""+deviceId+"\"], \"name\": \"Face Detector\", \"manufacturer\": \"FaceDetectorMulti\"},\n" +
+                "  \"device\": {\"identifiers\": [\""+deviceId+"\"], \"name\": \"Face Detector\"},\n" +
                 "  \"name\": \"Có người\",\n" +
                 "  \"state_topic\": \""+baseTopic+"\",\n" +
                 "  \"value_template\": \"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\n" +
@@ -152,7 +152,7 @@ public class MqttManager {
                 "}");
 
             // 2. Sensor: Số người
-            publishEntity("sensor", "person_count", 
+            publishEntity("sensor", "person_count",
                 "{\n" +
                 "  \"device\": {\"identifiers\": [\""+deviceId+"\"]},\n" +
                 "  \"name\": \"Số người phát hiện\",\n" +
@@ -163,7 +163,19 @@ public class MqttManager {
                 "  \"icon\": \"mdi:account-multiple\"\n" +
                 "}");
 
-            Log.i(TAG, "✅ Đã publish MQTT Discovery (Binary Sensor + Sensor)");
+            // 3. Sensor: Chi tiết khuôn mặt (JSON attributes)
+            publishEntity("sensor", "face_details",
+                "{\n" +
+                "  \"device\": {\"identifiers\": [\""+deviceId+"\"]},\n" +
+                "  \"name\": \"Chi tiết khuôn mặt\",\n" +
+                "  \"state_topic\": \""+baseTopic+"\",\n" +
+                "  \"value_template\": \"{{ value_json.count }}\",\n" +
+                "  \"json_attributes_template\": \"{{ value_json | tojson }}\",\n" +
+                "  \"unique_id\": \"face_detector_details\",\n" +
+                "  \"icon\": \"mdi:face-recognition\"\n" +
+                "}");
+
+            Log.i(TAG, "✅ Đã publish 3 thực thể MQTT Discovery");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
