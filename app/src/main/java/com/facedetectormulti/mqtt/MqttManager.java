@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Fix hoàn toàn vấn đề không cập nhật trạng thái
+ * MqttManager - Tối ưu cho Home Assistant
  */
 public class MqttManager {
 
@@ -138,19 +138,27 @@ public class MqttManager {
         String deviceId = "face_detector_android";
 
         try {
-            // Binary Sensor: Có người
-            publishEntity("binary_sensor", "face_detected",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Có người\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"face_detected\",\"icon\":\"mdi:account-multiple\"}");
+            // 1. Binary Sensor: Person Detect
+            publishEntity("binary_sensor", "person_detected",
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Person Detect\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"person_detected\",\"icon\":\"mdi:account-multiple\"}");
 
-            // Sensor: Số người
+            // 2. Sensor: Số người
             publishEntity("sensor", "person_count",
                 "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\"}");
 
-            // Sensor: Chi tiết khuôn mặt
+            // 3. Sensor: Center X
+            publishEntity("sensor", "face_center_x",
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center X\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\",\"unique_id\":\"face_center_x\",\"unit_of_measurement\":\"\",\"icon\":\"mdi:axis-x-arrow\"}");
+
+            // 4. Sensor: Center Y
+            publishEntity("sensor", "face_center_y",
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center Y\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\",\"unique_id\":\"face_center_y\",\"unit_of_measurement\":\"\",\"icon\":\"mdi:axis-y-arrow\"}");
+
+            // 5. Sensor: Chi tiết khuôn mặt (JSON)
             publishEntity("sensor", "face_details",
                 "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\"}");
 
-            Log.i(TAG, "✅ Đã publish Discovery");
+            Log.i(TAG, "✅ Đã publish 5 thực thể Discovery");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
@@ -180,7 +188,7 @@ public class MqttManager {
                 msg.setQos(qos);
                 msg.setRetained(false);
                 client.publish(baseTopic, msg);
-                Log.d(TAG, "Published: " + payload);
+                Log.d(TAG, "Published: count=" + faces.size());
             } catch (Exception e) {
                 Log.w(TAG, "Publish failed", e);
             }
@@ -198,7 +206,7 @@ public class MqttManager {
             if (i > 0) sb.append(",");
             FaceResult f = faces.get(i);
             sb.append("{\"id\":").append(f.trackingId)
-              .append(",\"cx\":").append(String.format(Locale.US, "%.3f", f.centerX()))  // Locale.US = dấu chấm
+              .append(",\"cx\":").append(String.format(Locale.US, "%.3f", f.centerX()))
               .append(",\"cy\":").append(String.format(Locale.US, "%.3f", f.centerY()))
               .append(",\"w\":").append(String.format(Locale.US, "%.3f", f.width()))
               .append(",\"h\":").append(String.format(Locale.US, "%.3f", f.height()))
