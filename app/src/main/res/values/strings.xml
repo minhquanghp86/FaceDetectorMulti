@@ -1,62 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- App Info -->
-    <string name="app_name">FaceDetector Multi</string>
-    
-    <!-- Permissions -->
+    <string name="app_name">FaceDetector</string>
     <string name="permission_camera_required">Cần quyền Camera để hoạt động</string>
     <string name="permission_denied">Quyền Camera bị từ chối</string>
-    
-    <!-- UI Labels -->
-    <string name="hud_faces">Faces: %d</string>
-    <string name="hud_fps">FPS: %d</string>
-    <string name="hud_time">Time: %dms</string>
     <string name="switch_camera">Chuyển camera</string>
-    
-    <!-- Menu -->
     <string name="menu_settings">⚙ Cài đặt</string>
-    
-    <!-- Settings Activity Title -->
-    <string name="settings_title">⚙ Cài đặt nhận diện</string>
-    
-    <!-- Settings: minFaceSize -->
-    <string name="setting_min_face_size_title">Kích thước mặt tối thiểu (minFaceSize)</string>
-    <string name="setting_min_face_size_desc">Nhỏ hơn → detect xa hơn, tốn CPU hơn</string>
-    
-    <!-- Settings: minConfidence -->
-    <string name="setting_min_confidence_title">Ngưỡng lọc kết quả (Min Confidence)</string>
-    <string name="setting_min_confidence_desc">Lớn hơn → ít box ảo, nhưng có thể bỏ sót face mờ</string>
-    
-    <!-- Settings: Performance Mode -->
-    <string name="setting_perf_mode_title">Chế độ nhận diện (cần restart camera)</string>
-    <string name="setting_perf_mode_label">Accurate (chính xác, chậm hơn)</string>
-    
-    <!-- Settings: Resolution -->
-    <string name="setting_resolution_title">Độ phân giải camera (cần restart camera)</string>
-    <string name="setting_res_640">640×480  (nhanh, pin tiết kiệm)</string>
-    <string name="setting_res_1280">1280×720  (cân bằng — khuyến nghị)</string>
-    <string name="setting_res_1920">1920×1080  (chi tiết, tốn pin/CPU)</string>
-    
-    <!-- Settings: Frame Throttle -->
-    <string name="setting_frame_interval_title">Giới hạn FPS xử lý (Frame Throttle)</string>
-    <string name="setting_frame_interval_desc">Lớn hơn → ít frame xử lý, tiết kiệm pin, mượt hơn</string>
-    
-    <!-- Settings: Actions -->
-    <string name="setting_reset_defaults">↺  Reset về mặc định</string>
-    <string name="setting_saved_hint">⚠ Cài đặt được lưu tự động. Restart camera để áp dụng thay đổi Resolution/Performance.</string>
-    
-    <!-- Settings: Toast Messages -->
-    <string name="toast_settings_saved">✓ Cài đặt đã lưu</string>
     <string name="toast_need_restart">⚠ Cần restart camera để áp dụng</string>
     <string name="toast_reset_done">✓ Đã reset về mặc định</string>
-    
-    <!-- Settings: Confirmation -->
-    <string name="dialog_reset_confirm">Reset tất cả về giá trị mặc định?</string>
-    <string name="dialog_reset_positive">Reset</string>
-    <string name="dialog_reset_negative">Hủy</string>
-    
-    <!-- Errors -->
     <string name="error_camera_init">Lỗi khởi tạo camera: %s</string>
-    <string name="error_camera_bind">Lỗi kết nối camera: %s</string>
-    <string name="error_detection">Lỗi phát hiện: %s</string>
 </resources>

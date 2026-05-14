@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ON - Nền ĐỎ nổi bật -->
+    <item android:color="#FF5252" android:state_checked="true"/>
+    <!-- OFF - Nền xám -->
+    <item android:color="#555555"/>
+</selector>

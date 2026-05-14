@@ -6,107 +6,67 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 
 import androidx.annotation.Nullable;
 
-import com.facedetectormulti.detection.FaceRecognitionResult;
 import com.facedetectormulti.detection.FaceResult;
 
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * FaceOverlayView - vẽ bounding box phát hiện khuôn mặt.
+ * Tối giản, không có recognition code.
+ */
 public class FaceOverlayView extends View {
 
-    private static final String TAG = "FaceOverlayView";
-
-    private static final int[] COLORS = {
-        Color.rgb(0, 255, 100),
-        Color.rgb(0, 200, 255),
-        Color.rgb(255, 120, 0),
-        Color.rgb(255, 60, 200),
-        Color.rgb(200, 255, 0),
-        Color.rgb(180, 100, 255),
+    private static final int[] BOX_COLORS = {
+        0xFF00FF64, // xanh lá
+        0xFF00C8FF, // xanh cyan
+        0xFFFF7800, // cam
+        0xFFFF3CC8, // hồng
+        0xFFC8FF00, // vàng xanh
+        0xFFB464FF, // tím
     };
 
-    private final Paint boxPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint boxPaint     = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint labelBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint centerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint statsPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint debugPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint textPaint    = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint statsPaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint cornerPaint  = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private List<? extends FaceResult> faces = Collections.emptyList();
     private long processingTimeMs = 0;
     private boolean mirrorX = false;
-    private int frameCount = 0;
-    private static final int LOG_INTERVAL = 30;
 
-    // Cache số lượng face trong DB để tránh gọi DB liên tục
-    private String dbInfoCache = "DB: loading...";
-    private int dbInfoFrameCounter = 0;
-    private static final int DB_INFO_REFRESH_INTERVAL = 60; // Refresh mỗi 60 frame
-    private boolean dbInfoLoaded = false; // Đánh dấu đã load DB info chưa
-
-    public FaceOverlayView(Context context) {
-        super(context);
-        init();
-    }
-
-    public FaceOverlayView(Context context, @Nullable AttributeSet attrs) {
-        super(context, attrs);
-        init();
-    }
+    public FaceOverlayView(Context context) { super(context); init(); }
+    public FaceOverlayView(Context context, @Nullable AttributeSet attrs) { super(context, attrs); init(); }
 
     private void init() {
         boxPaint.setStyle(Paint.Style.STROKE);
-        boxPaint.setStrokeWidth(3f);
+        boxPaint.setStrokeWidth(3.5f);
+
         labelBgPaint.setStyle(Paint.Style.FILL);
-        labelBgPaint.setColor(Color.argb(200, 0, 0, 0));
-        textPaint.setTextSize(32f);
+
+        textPaint.setTextSize(30f);
         textPaint.setColor(Color.WHITE);
         textPaint.setFakeBoldText(true);
-        centerPaint.setStyle(Paint.Style.FILL);
-        statsPaint.setTextSize(36f);
+
+        statsPaint.setTextSize(34f);
         statsPaint.setColor(Color.WHITE);
         statsPaint.setFakeBoldText(true);
         statsPaint.setShadowLayer(4f, 0, 0, Color.BLACK);
 
-        debugPaint.setTextSize(24f);
-        debugPaint.setColor(Color.YELLOW);
-        debugPaint.setFakeBoldText(true);
-        debugPaint.setShadowLayer(3f, 0, 0, Color.BLACK);
-        
-        // Load DB info ngay khi khởi tạo
-        refreshDbInfo();
+        cornerPaint.setStyle(Paint.Style.STROKE);
+        cornerPaint.setStrokeWidth(6f);
+        cornerPaint.setStrokeCap(Paint.Cap.ROUND);
     }
 
     public void update(List<? extends FaceResult> newFaces, long processingMs) {
         this.faces = newFaces != null ? newFaces : Collections.emptyList();
         this.processingTimeMs = processingMs;
-
-        frameCount++;
-        
-        // Log định kỳ
-        if (frameCount % LOG_INTERVAL == 0) {
-            logFaceDetails();
-        }
-        
-        // Refresh DB info định kỳ (không gọi trong onDraw)
-        dbInfoFrameCounter++;
-        if (dbInfoFrameCounter >= DB_INFO_REFRESH_INTERVAL) {
-            dbInfoFrameCounter = 0;
-            refreshDbInfo();
-        }
-        
         postInvalidate();
-    }
-
-    public void update(com.facedetectormulti.detection.DetectionResult result) {
-        if (result != null) {
-            update(result.faces, result.processingMs);
-        }
     }
 
     public void clear() {
@@ -119,71 +79,11 @@ public class FaceOverlayView extends View {
         postInvalidate();
     }
 
-    // ✅ Lấy DB info an toàn - CHẠY TRÊN BACKGROUND THREAD
-    private void refreshDbInfo() {
-        try {
-            final Context ctx = getContext();
-            if (ctx != null) {
-                // Chạy trên background thread
-                new Thread(() -> {
-                    try {
-                        int dbCount = com.facedetectormulti.detection.FaceDatabase
-                            .getInstance(ctx).faceDao().getCount();
-                        dbInfoCache = "DB: " + dbCount + " registered faces";
-                        dbInfoLoaded = true;
-                        Log.d(TAG, "DB count refreshed: " + dbCount);
-                    } catch (Exception e) {
-                        dbInfoCache = "DB: error - " + e.getMessage();
-                        Log.e(TAG, "Error getting DB count: " + e.getMessage());
-                    }
-                    // Cập nhật UI sau khi có kết quả
-                    postInvalidate();
-                }).start();
-            }
-        } catch (Exception e) {
-            dbInfoCache = "DB: init error - " + e.getMessage();
-            Log.e(TAG, "Error starting DB thread: " + e.getMessage());
-        }
-    }
-
-    private void logFaceDetails() {
-        Log.d(TAG, "========== FRAME " + frameCount + " ==========");
-        Log.d(TAG, "Total faces: " + faces.size() + " | Time: " + processingTimeMs + "ms");
-        Log.d(TAG, "DB Status: " + dbInfoCache);
-
-        boolean hasRecognition = false;
-        for (FaceResult face : faces) {
-            if (face instanceof FaceRecognitionResult) {
-                hasRecognition = true;
-                FaceRecognitionResult rec = (FaceRecognitionResult) face;
-                Log.d(TAG, "  Face #" + face.trackingId + ": " + rec.getDisplayLabel());
-                Log.d(TAG, "    Confidence: " + String.format("%.4f", rec.confidence));
-                Log.d(TAG, "    IsRegistered: " + rec.isRegistered);
-                Log.d(TAG, "    PersonName: " + (rec.personName != null ? rec.personName : "NULL"));
-            } else {
-                Log.d(TAG, "  Face #" + face.trackingId + ": FaceResult (NO RECOGNITION)");
-            }
-        }
-        if (!hasRecognition) {
-            Log.w(TAG, "⚠ NO FaceRecognitionResult found! Recognition might be DISABLED!");
-        }
-        Log.d(TAG, "==========================================");
-    }
-
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-
         float vw = getWidth();
         float vh = getHeight();
-
-        // Vẽ debug center
-        drawDebugCenter(canvas, vw, vh);
-
-        if (faces.isEmpty()) {
-            drawStats(canvas, 0);
-            return;
-        }
 
         for (FaceResult face : faces) {
             drawFace(canvas, face, vw, vh);
@@ -191,157 +91,86 @@ public class FaceOverlayView extends View {
         drawStats(canvas, faces.size());
     }
 
-    private void drawDebugCenter(Canvas canvas, float vw, float vh) {
-        float centerX = vw / 2f;
-        float centerY = vh / 2f;
-
-        boolean hasRecognition = false;
-        String status = "RECOGNITION: OFF";
-        int statusColor = Color.RED;
-
-        if (!faces.isEmpty()) {
-            for (FaceResult face : faces) {
-                if (face instanceof FaceRecognitionResult) {
-                    hasRecognition = true;
-                    FaceRecognitionResult rec = (FaceRecognitionResult) face;
-                    if (rec.isRegistered) {
-                        status = "✓ MATCHED: " + rec.personName + " (" + 
-                                String.format("%.1f", rec.confidence * 100) + "%)";
-                        statusColor = Color.GREEN;
-                    } else {
-                        status = "✗ NO MATCH (best: " + 
-                                String.format("%.3f", rec.confidence) + ")";
-                        statusColor = Color.YELLOW;
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (!hasRecognition && !faces.isEmpty()) {
-            status = "RECOGNITION: OFF (FaceResult only)";
-            statusColor = Color.RED;
-        } else if (faces.isEmpty()) {
-            status = "NO FACE DETECTED";
-            statusColor = Color.WHITE;
-        }
-
-        // Vẽ nền cho status
-        Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        bgPaint.setColor(Color.argb(180, 0, 0, 0));
-        float textW = debugPaint.measureText(status);
-        canvas.drawRoundRect(
-            new RectF(centerX - textW / 2f - 20f, centerY - 40f, 
-                      centerX + textW / 2f + 20f, centerY + 10f),
-            10f, 10f, bgPaint);
-
-        // Vẽ chữ status
-        debugPaint.setColor(statusColor);
-        canvas.drawText(status, centerX - textW / 2f, centerY, debugPaint);
-
-        // Vẽ DB info (dùng cache - không gọi DB trực tiếp)
-        Paint smallPaint = new Paint(debugPaint);
-        smallPaint.setTextSize(18f);
-        smallPaint.setColor(Color.CYAN);
-        float dbTextW = smallPaint.measureText(dbInfoCache);
-        
-        // Vẽ nền cho DB info
-        Paint dbBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        dbBgPaint.setColor(Color.argb(150, 0, 0, 0));
-        canvas.drawRoundRect(
-            new RectF(centerX - dbTextW / 2f - 12f, centerY + 18f,
-                      centerX + dbTextW / 2f + 12f, centerY + 42f),
-            6f, 6f, dbBgPaint);
-        
-        canvas.drawText(dbInfoCache, centerX - dbTextW / 2f, centerY + 36f, smallPaint);
-    }
-
     private void drawFace(Canvas canvas, FaceResult face, float vw, float vh) {
-        int colorIndex = Math.abs(face.trackingId) % COLORS.length;
-        boolean isRegistered = face instanceof FaceRecognitionResult &&
-                ((FaceRecognitionResult) face).isRegistered;
+        int colorInt = BOX_COLORS[Math.abs(face.trackingId) % BOX_COLORS.length];
+        boxPaint.setColor(colorInt);
+        cornerPaint.setColor(colorInt);
 
-        boxPaint.setColor(isRegistered ? Color.parseColor("#00FF50") : COLORS[colorIndex]);
-        centerPaint.setColor(boxPaint.getColor());
-
-        float left = face.boxNorm[0] * vw;
-        float top = face.boxNorm[1] * vh;
-        float right = face.boxNorm[2] * vw;
+        float left   = face.boxNorm[0] * vw;
+        float top    = face.boxNorm[1] * vh;
+        float right  = face.boxNorm[2] * vw;
         float bottom = face.boxNorm[3] * vh;
 
         if (mirrorX) {
-            float tmpLeft = left;
-            left = vw - right;
-            right = vw - tmpLeft;
+            float tmp = left;
+            left  = vw - right;
+            right = vw - tmp;
         }
 
-        RectF rect = new RectF(left, top, right, bottom);
-        canvas.drawRoundRect(rect, 12f, 12f, boxPaint);
+        // Vẽ box chính (mờ)
+        boxPaint.setAlpha(140);
+        canvas.drawRoundRect(new RectF(left, top, right, bottom), 10f, 10f, boxPaint);
+        boxPaint.setAlpha(255);
 
-        float cx = (left + right) / 2f;
-        float cy = (top + bottom) / 2f;
-        canvas.drawCircle(cx, cy, 8f, centerPaint);
-        canvas.drawLine(cx - 18, cy, cx + 18, cy, boxPaint);
-        canvas.drawLine(cx, cy - 18, cx, cy + 18, boxPaint);
+        // Vẽ góc nổi bật (corner brackets)
+        float cs = Math.min((right - left), (bottom - top)) * 0.18f; // corner size
+        cs = Math.max(12f, Math.min(cs, 40f));
+        drawCorners(canvas, left, top, right, bottom, cs);
 
+        // Label
         String label = buildLabel(face);
         float textW = textPaint.measureText(label);
-        float labelH = 44f;
-        float lx = left;
-        float ly = top - labelH;
-        if (ly < 0) ly = bottom;
+        float lbH   = 40f;
+        float lx    = left;
+        float ly    = top - lbH - 2f;
+        if (ly < 0) ly = bottom + 2f;
 
-        labelBgPaint.setColor(isRegistered ? Color.parseColor("#006622") : Color.parseColor("#444444"));
-        canvas.drawRoundRect(new RectF(lx, ly, lx + textW + 16f, ly + labelH), 8f, 8f, labelBgPaint);
-        canvas.drawText(label, lx + 8f, ly + labelH - 10f, textPaint);
+        labelBgPaint.setColor(Color.argb(180, 0, 0, 0));
+        canvas.drawRoundRect(new RectF(lx, ly, lx + textW + 16f, ly + lbH), 8f, 8f, labelBgPaint);
+
+        textPaint.setColor(colorInt);
+        canvas.drawText(label, lx + 8f, ly + lbH - 10f, textPaint);
+    }
+
+    private void drawCorners(Canvas canvas, float l, float t, float r, float b, float cs) {
+        // Top-left
+        canvas.drawLine(l, t + cs, l, t, cornerPaint);
+        canvas.drawLine(l, t, l + cs, t, cornerPaint);
+        // Top-right
+        canvas.drawLine(r - cs, t, r, t, cornerPaint);
+        canvas.drawLine(r, t, r, t + cs, cornerPaint);
+        // Bottom-left
+        canvas.drawLine(l, b - cs, l, b, cornerPaint);
+        canvas.drawLine(l, b, l + cs, b, cornerPaint);
+        // Bottom-right
+        canvas.drawLine(r - cs, b, r, b, cornerPaint);
+        canvas.drawLine(r, b - cs, r, b, cornerPaint);
     }
 
     private String buildLabel(FaceResult face) {
-        if (face instanceof FaceRecognitionResult) {
-            FaceRecognitionResult rec = (FaceRecognitionResult) face;
-            if (rec.isRegistered) {
-                return String.format("✅ %s (%.0f%%)", rec.personName, rec.confidence * 100);
-            } else {
-                return String.format("❓ %.3f", rec.confidence);
+        StringBuilder sb = new StringBuilder("#").append(face.trackingId);
+        if (face.smilingProbability >= 0) {
+            if (face.smilingProbability > 0.7f) sb.append(" 😊");
+        }
+        if (face.leftEyeOpenProbability >= 0 && face.rightEyeOpenProbability >= 0) {
+            if (face.leftEyeOpenProbability < 0.3f && face.rightEyeOpenProbability < 0.3f) {
+                sb.append(" 😴");
             }
         }
-        StringBuilder sb = new StringBuilder();
-        sb.append("#").append(face.trackingId);
-        if (face.smilingProbability >= 0) {
-            sb.append(" ").append((int) (face.smilingProbability * 100)).append("%");
-        }
-        if (Math.abs(face.eulerY) > 20f) {
+        if (Math.abs(face.eulerY) > 25f) {
             sb.append(face.eulerY > 0 ? " ◀" : " ▶");
         }
         return sb.toString();
     }
 
     private void drawStats(Canvas canvas, int count) {
-        String text1 = "Faces: " + count + " | " + processingTimeMs + "ms";
-        canvas.drawText(text1, 20f, 50f, statsPaint);
+        long fps = processingTimeMs > 0 ? Math.min(99, 1000 / processingTimeMs) : 0;
+        String txt = "👤 " + count + "  |  " + fps + " fps  |  " + processingTimeMs + "ms";
+        float textW = statsPaint.measureText(txt);
 
-        if (!faces.isEmpty()) {
-            int recognizedCount = 0;
-            float bestScore = 0f;
-            for (FaceResult face : faces) {
-                if (face instanceof FaceRecognitionResult) {
-                    FaceRecognitionResult rec = (FaceRecognitionResult) face;
-                    if (rec.isRegistered) recognizedCount++;
-                    if (rec.confidence > bestScore) bestScore = rec.confidence;
-                }
-            }
-
-            String text2;
-            if (recognizedCount > 0) {
-                text2 = "✓ Recognized: " + recognizedCount + "/" + count;
-            } else {
-                text2 = "Best score: " + String.format("%.3f", bestScore);
-            }
-
-            Paint statsPaint2 = new Paint(statsPaint);
-            statsPaint2.setTextSize(28f);
-            statsPaint2.setColor(recognizedCount > 0 ? Color.GREEN : Color.YELLOW);
-            canvas.drawText(text2, 20f, 90f, statsPaint2);
-        }
+        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bg.setColor(Color.argb(160, 0, 0, 0));
+        canvas.drawRoundRect(new RectF(8, 8, textW + 32, 56), 8, 8, bg);
+        canvas.drawText(txt, 16f, 44f, statsPaint);
     }
 }

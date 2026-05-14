@@ -1,42 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout 
+<androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:keepScreenOn="true"
-    tools:context=".ui.MainActivity">
+    android:keepScreenOn="true">
 
-    <!-- Camera Preview -->
     <androidx.camera.view.PreviewView
         android:id="@+id/cameraPreview"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"/>
 
-    <!-- Face Overlay -->
     <com.facedetectormulti.ui.FaceOverlayView
         android:id="@+id/faceOverlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"/>
 
-    <!-- HUD: Stats (top-left) -->
-    <TextView
-        android:id="@+id/hudTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:background="#80000000"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="6dp"
-        android:textColor="@android:color/white"
-        android:textSize="12sp"
-        android:fontFamily="monospace"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:text="Faces: 2 | FPS: 15 | Time: 67ms" />
-
-    <!-- Camera Switch Button (top-right) -->
+    <!-- Camera Switch (top-right) -->
     <ImageButton
         android:id="@+id/switchCameraBtn"
         android:layout_width="48dp"
@@ -47,9 +27,9 @@
         android:src="@drawable/ic_camera_switch"
         android:tint="@android:color/white"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"/>
 
-    <!-- ✅ Settings Button (bottom-right) -->
+    <!-- Settings (bottom-right) -->
     <ImageButton
         android:id="@+id/settingsBtn"
         android:layout_width="48dp"
@@ -61,38 +41,43 @@
         android:src="@android:drawable/ic_menu_preferences"
         android:tint="@android:color/white"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Thêm vào activity_main.xml, gần settingsBtn -->
-
-    <ImageButton
-        android:id="@+id/manageFacesBtn"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="128dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Quản lý faces"
-        android:src="@android:drawable/ic_menu_manage"
-        android:tint="#00AAFF"
+    <!-- MQTT Status indicator (bottom-left) -->
+    <LinearLayout
+        android:id="@+id/mqttStatusBar"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#AA000000"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginBottom="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
 
+        <View
+            android:id="@+id/mqttStatusDot"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="#666666"
+            android:layout_marginEnd="6dp"/>
 
-    <ImageButton
-        android:id="@+id/registerBtn"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="72dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:contentDescription="Đăng ký mặt mới"
-        android:src="@android:drawable/ic_input_add"
-        android:tint="#00FF50"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        <TextView
+            android:id="@+id/mqttStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MQTT: tắt"
+            android:textColor="#CCCCCC"
+            android:textSize="11sp"
+            android:fontFamily="monospace"/>
+    </LinearLayout>
 
-    <!-- Permission denied message (center) -->
+    <!-- Permission denied -->
     <TextView
         android:id="@+id/permissionDeniedText"
         android:layout_width="wrap_content"
@@ -106,6 +91,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
