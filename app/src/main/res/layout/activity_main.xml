@@ -25,11 +25,11 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Chuyển camera"
         android:src="@drawable/ic_camera_switch"
-        android:tint="#00AAFF"                    <!-- Đổi sang xanh lam -->
+        android:tint="#00AAFF"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
-    <!-- Settings (bottom-right) -->
+    <!-- Settings Button (bottom-right) -->
     <ImageButton
         android:id="@+id/settingsBtn"
         android:layout_width="48dp"
@@ -39,11 +39,11 @@
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Cài đặt"
         android:src="@android:drawable/ic_menu_preferences"
-        android:tint="#00AAFF"                    <!-- Đổi sang xanh lam -->
+        android:tint="#00AAFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- MQTT Status indicator (bottom-left) -->
+    <!-- MQTT Status -->
     <LinearLayout
         android:id="@+id/mqttStatusBar"
         android:layout_width="wrap_content"
