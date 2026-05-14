@@ -327,16 +327,16 @@
                 android:buttonTint="#00AAFF"/>
         </RadioGroup>
 
-        <TextView
+        <<TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="📋 Payload mẫu: {\"ts\":1234567890,\"count\":1,\"ms\":45,\"faces\":[{\"id\":1,\"left\":0.12,\"top\":0.20,\"right\":0.38,\"bottom\":0.68,\"cx\":0.25,\"cy\":0.44,\"w\":0.26,\"h\":0.48}]}"
+            android:text="📋 Payload mẫu: {&quot;ts&quot;:1234567890,&quot;count&quot;:1,&quot;ms&quot;:45,&quot;faces&quot;:[{&quot;id&quot;:1,&quot;left&quot;:0.12,&quot;top&quot;:0.20,&quot;right&quot;:0.38,&quot;bottom&quot;:0.68,&quot;cx&quot;:0.25,&quot;cy&quot;:0.44,&quot;w&quot;:0.26,&quot;h&quot;:0.48}]}"
             android:textColor="#666666"
             android:textSize="10sp"
             android:fontFamily="monospace"
             android:paddingTop="8dp"
             android:paddingBottom="4dp"/>
-
+  
         <!-- ═══ Reset ═══ -->
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
