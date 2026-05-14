@@ -72,16 +72,18 @@
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- Accurate Mode -->
+        <!-- Accurate Mode - Đã tối ưu -->
         <Switch
             android:id="@+id/switch_perf_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Chế độ Accurate (chính xác hơn, chậm hơn — cần restart camera)"
+            android:textOn="BẬT - Chính xác cao"
+            android:textOff="TẮT - Ưu tiên tốc độ"
             android:textColor="#CCCCCC"
             android:textSize="13sp"
             android:thumbTint="#00FF50"
-            android:trackTint="#004422"/>
+            android:trackTint="@color/switch_track"/>
 
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
@@ -185,17 +187,19 @@
             android:textSize="12sp"
             android:paddingBottom="12dp"/>
 
-        <!-- Enable MQTT -->
+        <!-- Enable MQTT - Đã tối ưu -->
         <Switch
             android:id="@+id/switch_mqtt_enabled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Bật MQTT"
+            android:textOn="✅ MQTT ĐÃ BẬT"
+            android:textOff="❌ MQTT TẮT"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold"
-            android:thumbTint="#00AAFF"
-            android:trackTint="#001133"
+            android:thumbTint="#00FF88"
+            android:trackTint="@color/switch_track"
             android:paddingBottom="16dp"/>
 
         <!-- Broker URL -->
