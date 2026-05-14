@@ -33,6 +33,7 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_MQTT_PASSWORD    = "pref_mqtt_password";
     public static final String KEY_MQTT_TOPIC       = "pref_mqtt_topic";
     public static final String KEY_MQTT_QOS         = "pref_mqtt_qos";
+    public static final String KEY_MQTT_PUBLISH_INTERVAL = "mqtt_publish_interval_ms";
 
     // ── Defaults ─────────────────────────────────────────────────────────
     private static final float   DEF_MIN_FACE_SIZE  = 0.10f;
