@@ -15,7 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - quản lý kết nối và publish MQTT
+ * MqttManager - Kết nối và publish kết quả phát hiện khuôn mặt
+ * Đã tối ưu cho EMQX trong Home Assistant
  */
 public class MqttManager {
 
@@ -47,14 +48,35 @@ public class MqttManager {
         this.stateListener = listener;
     }
 
-    public void configure(String brokerUrl, String username, String password,
+    /**
+     * Cấu hình MQTT - Tự động sửa URL cho EMQX
+     */
+    public void configure(String brokerInput, String username, String password,
                           String topic, int qos, long publishIntervalMs) {
-        this.brokerUrl = brokerUrl != null ? brokerUrl.trim() : "tcp://localhost:1883";
+        
+        String url = (brokerInput != null ? brokerInput.trim() : "");
+        
+        // Tự động thêm scheme nếu thiếu
+        if (!url.startsWith("tcp://") && !url.startsWith("ws://") && !url.startsWith("ssl://")) {
+            if (url.isEmpty()) {
+                url = "tcp://192.168.1.100:1883";
+            } else if (url.contains(":")) {
+                url = "tcp://" + url;           // IP:port
+            } else {
+                url = "tcp://" + url + ":1883"; // Chỉ IP
+            }
+        }
+
+        this.brokerUrl = url;
         this.username = username != null ? username.trim() : "";
         this.password = password != null ? password : "";
         this.topic = topic != null ? topic.trim() : "face/detection";
         this.qos = Math.max(0, Math.min(2, qos));
         this.minPublishIntervalMs = Math.max(100, publishIntervalMs);
+
+        Log.i(TAG, "MQTT Configured → " + this.brokerUrl 
+                   + " | QoS=" + this.qos 
+                   + " | Interval=" + this.minPublishIntervalMs + "ms");
     }
 
     public void connect() {
@@ -71,20 +93,59 @@ public class MqttManager {
                     client.disconnect().waitForCompletion(3000);
                 }
             } catch (Exception e) {
-                Log.w(TAG, "Disconnect error: " + e.getMessage());
+                Log.w(TAG, "Disconnect error", e);
             }
             setState(State.DISCONNECTED, "Đã ngắt kết nối");
         });
     }
 
     private void doConnect() {
-        // ... (giữ nguyên phần doConnect cũ của bạn)
-        // Tôi rút gọn để tránh lỗi, bạn có thể paste phần doConnect cũ vào đây
         try {
-            // Code connect cũ của bạn...
-            // (nếu bạn paste phần doConnect cũ vào, mình sẽ merge lại)
+            if (client != null) {
+                try { client.close(); } catch (Exception ignored) {}
+                client = null;
+            }
+
+            String clientId = "FaceDetector-" + System.currentTimeMillis();
+            client = new MqttAsyncClient(brokerUrl, clientId, new MemoryPersistence());
+
+            client.setCallback(new MqttCallbackExtended() {
+                @Override
+                public void connectComplete(boolean reconnect, String serverURI) {
+                    setState(State.CONNECTED, "Kết nối thành công " + serverURI);
+                    Log.i(TAG, "MQTT Connected: " + serverURI);
+                }
+
+                @Override
+                public void connectionLost(Throwable cause) {
+                    Log.w(TAG, "Connection lost", cause);
+                    if (enabled.get()) {
+                        setState(State.CONNECTING, "Mất kết nối, đang thử lại...");
+                    } else {
+                        setState(State.DISCONNECTED, "Ngắt kết nối");
+                    }
+                }
+
+                @Override public void messageArrived(String topic, MqttMessage message) {}
+                @Override public void deliveryComplete(IMqttDeliveryToken token) {}
+            });
+
+            MqttConnectOptions opts = new MqttConnectOptions();
+            opts.setCleanSession(true);
+            opts.setConnectionTimeout(10);
+            opts.setKeepAliveInterval(30);
+            opts.setAutomaticReconnect(true);
+
+            if (!username.isEmpty()) {
+                opts.setUserName(username);
+                opts.setPassword(password.toCharArray());
+            }
+
+            Log.d(TAG, "Attempting to connect to: " + brokerUrl);
+            client.connect(opts).waitForCompletion(15000);
+
         } catch (Exception e) {
-            Log.e(TAG, "Connect failed", e);
+            Log.e(TAG, "Connect failed: " + e.getMessage(), e);
             setState(State.ERROR, "Lỗi kết nối: " + e.getMessage());
         }
     }
@@ -107,7 +168,7 @@ public class MqttManager {
                 msg.setRetained(false);
                 client.publish(pubTopic, msg);
             } catch (Exception e) {
-                Log.w(TAG, "Publish failed: " + e.getMessage());
+                Log.w(TAG, "Publish failed", e);
             }
         });
     }
@@ -120,14 +181,13 @@ public class MqttManager {
           .append(",\"faces\":[");
 
         for (int i = 0; i < faces.size(); i++) {
-            FaceResult f = faces.get(i);
             if (i > 0) sb.append(",");
-            sb.append("{")
-              .append("\"id\":").append(f.trackingId).append(",")
-              .append("\"left\":").append(String.format("%.3f", f.boxNorm[0])).append(",")
-              .append("\"top\":").append(String.format("%.3f", f.boxNorm[1])).append(",")
-              .append("\"right\":").append(String.format("%.3f", f.boxNorm[2])).append(",")
-              .append("\"bottom\":").append(String.format("%.3f", f.boxNorm[3]))
+            FaceResult f = faces.get(i);
+            sb.append("{\"id\":").append(f.trackingId)
+              .append(",\"left\":").append(String.format("%.3f", f.boxNorm[0]))
+              .append(",\"top\":").append(String.format("%.3f", f.boxNorm[1]))
+              .append(",\"right\":").append(String.format("%.3f", f.boxNorm[2]))
+              .append(",\"bottom\":").append(String.format("%.3f", f.boxNorm[3]))
               .append("}");
         }
         sb.append("]}");
