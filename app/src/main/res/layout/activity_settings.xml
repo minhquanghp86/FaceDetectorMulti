@@ -136,7 +136,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 = xử lý tất cả frame | 50ms = ~20fps | 100ms = ~10fps"
+            android:text="0 = xử lý tất cả frame | 50ms = \~20fps | 100ms = \~10fps"
             android:textColor="#888888"
             android:textSize="12sp"
             android:paddingBottom="4dp"/>
@@ -300,7 +300,8 @@
             android:id="@+id/rg_mqtt_qos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"/>
+            android:orientation="horizontal">
+
             <RadioButton
                 android:id="@+id/rb_qos_0"
                 android:layout_width="wrap_content"
