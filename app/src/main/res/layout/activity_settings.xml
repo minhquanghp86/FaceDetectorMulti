@@ -72,7 +72,7 @@
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- Accurate Mode - Đã tối ưu -->
+        <!-- Accurate Mode -->
         <Switch
             android:id="@+id/switch_perf_mode"
             android:layout_width="match_parent"
@@ -187,7 +187,7 @@
             android:textSize="12sp"
             android:paddingBottom="12dp"/>
 
-        <!-- Enable MQTT - Đã tối ưu -->
+        <!-- Enable MQTT -->
         <Switch
             android:id="@+id/switch_mqtt_enabled"
             android:layout_width="match_parent"
