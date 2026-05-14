@@ -185,7 +185,8 @@ public class MqttManager {
                     + "\"device_class\":\"occupancy\","
                     + "\"state_topic\":\"" + baseTopic + "\","
                     + "\"value_template\":\"{% if value_json.count > 0 %}ON{% else %}OFF{% endif %}\","
-                    + "\"expire_after\":5,"
+                    + "\"expire_after\":10,"
+                    + "\"off_delay\":5,"
                     + "\"unique_id\":\"" + deviceId + "_person_detected\","
                     + "\"icon\":\"mdi:account-multiple\""
                     + availJson
