@@ -10,12 +10,13 @@ import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Tối ưu hoàn toàn cho Home Assistant (2026)
+ * MqttManager - Fix hoàn toàn vấn đề không cập nhật trạng thái
  */
 public class MqttManager {
 
@@ -139,23 +140,17 @@ public class MqttManager {
         try {
             // Binary Sensor: Có người
             publishEntity("binary_sensor", "face_detected",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Có người\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"face_detected\",\"icon\":\"mdi:account-multiple\",\"availability_topic\":\""+baseTopic+"/availability\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Có người\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"face_detected\",\"icon\":\"mdi:account-multiple\"}");
 
             // Sensor: Số người
             publishEntity("sensor", "person_count",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\",\"availability_topic\":\""+baseTopic+"/availability\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\"}");
 
             // Sensor: Chi tiết khuôn mặt
             publishEntity("sensor", "face_details",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\",\"availability_topic\":\""+baseTopic+"/availability\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}");
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\"}");
 
-            // Publish availability
-            MqttMessage availMsg = new MqttMessage("online".getBytes());
-            availMsg.setQos(1);
-            availMsg.setRetained(true);
-            client.publish(baseTopic + "/availability", availMsg);
-
-            Log.i(TAG, "✅ Đã publish đầy đủ Discovery + Availability");
+            Log.i(TAG, "✅ Đã publish Discovery");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
@@ -185,7 +180,7 @@ public class MqttManager {
                 msg.setQos(qos);
                 msg.setRetained(false);
                 client.publish(baseTopic, msg);
-                Log.d(TAG, "Published count = " + faces.size());
+                Log.d(TAG, "Published: " + payload);
             } catch (Exception e) {
                 Log.w(TAG, "Publish failed", e);
             }
@@ -203,10 +198,10 @@ public class MqttManager {
             if (i > 0) sb.append(",");
             FaceResult f = faces.get(i);
             sb.append("{\"id\":").append(f.trackingId)
-              .append(",\"cx\":").append(String.format("%.3f", f.centerX()))  // Dùng dấu chấm
-              .append(",\"cy\":").append(String.format("%.3f", f.centerY()))
-              .append(",\"w\":").append(String.format("%.3f", f.width()))
-              .append(",\"h\":").append(String.format("%.3f", f.height()))
+              .append(",\"cx\":").append(String.format(Locale.US, "%.3f", f.centerX()))  // Locale.US = dấu chấm
+              .append(",\"cy\":").append(String.format(Locale.US, "%.3f", f.centerY()))
+              .append(",\"w\":").append(String.format(Locale.US, "%.3f", f.width()))
+              .append(",\"h\":").append(String.format(Locale.US, "%.3f", f.height()))
               .append("}");
         }
         sb.append("]}");
