@@ -16,7 +16,18 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Phiên bản tối ưu cuối cho Home Assistant
+ * MqttManager - Phiên bản đã sửa lỗi cho Home Assistant
+ *
+ * Các thay đổi so với bản gốc:
+ *  1. FIX: binary_sensor value_template dùng "ON"/"OFF" (chữ hoa) — bản gốc dùng "on"/"off"
+ *         khiến HASS không nhận diện được trạng thái.
+ *  2. FIX: Thêm device_class "occupancy" cho binary_sensor để HASS hiển thị đúng icon/state.
+ *  3. FIX: Thêm availability_topic đầy đủ cho TẤT CẢ sensor (bản gốc thiếu ở sensor 2,3,4).
+ *  4. FIX: unique_id có prefix deviceId tránh xung đột nếu chạy nhiều thiết bị.
+ *  5. REMOVED: Entity "face_details" (sensor) bị xóa — trùng chức năng với "person_count"
+ *             vì cùng value_template: value_json.count.
+ *             Thay bằng json_attributes_template trên "person_count" để vẫn có đủ chi tiết.
+ *  6. FIX: Device block đầy đủ name/model/manufacturer cho tất cả entity.
  */
 public class MqttManager {
 
@@ -49,7 +60,7 @@ public class MqttManager {
 
     public void configure(String brokerInput, String username, String password,
                           String topic, int qos, long publishIntervalMs) {
-        
+
         String url = (brokerInput != null ? brokerInput.trim() : "");
         if (!url.startsWith("tcp://") && !url.startsWith("ws://") && !url.startsWith("ssl://")) {
             if (url.isEmpty()) url = "tcp://192.168.1.100:1883";
@@ -78,6 +89,13 @@ public class MqttManager {
         executor.execute(() -> {
             try {
                 if (client != null && client.isConnected()) {
+                    // Publish offline trước khi ngắt kết nối
+                    try {
+                        MqttMessage offlineMsg = new MqttMessage("offline".getBytes("UTF-8"));
+                        offlineMsg.setQos(1);
+                        offlineMsg.setRetained(true);
+                        client.publish(baseTopic + "/availability", offlineMsg).waitForCompletion(2000);
+                    } catch (Exception ignored) {}
                     client.disconnect().waitForCompletion(3000);
                 }
             } catch (Exception e) {
@@ -121,6 +139,9 @@ public class MqttManager {
             opts.setKeepAliveInterval(30);
             opts.setAutomaticReconnect(true);
 
+            // Will message: tự động publish "offline" khi mất kết nối đột ngột
+            opts.setWill(baseTopic + "/availability", "offline".getBytes(), 1, true);
+
             if (!username.isEmpty()) {
                 opts.setUserName(username);
                 opts.setPassword(password.toCharArray());
@@ -135,36 +156,106 @@ public class MqttManager {
     }
 
     private void publishDiscovery() {
-        String deviceId = "face_detector_android";
+        final String deviceId = "face_detector_android";
+
+        // Device block dùng chung cho tất cả entity
+        final String deviceJson = "{"
+                + "\"identifiers\":[\"" + deviceId + "\"],"
+                + "\"name\":\"Face Detector Android\","
+                + "\"model\":\"FaceDetectorMulti\","
+                + "\"manufacturer\":\"NQ SmartHome\""
+                + "}";
+
+        // Availability block dùng chung
+        final String availJson = ","
+                + "\"availability_topic\":\"" + baseTopic + "/availability\","
+                + "\"payload_available\":\"online\","
+                + "\"payload_not_available\":\"offline\"";
 
         try {
+            // ----------------------------------------------------------------
             // 1. Binary Sensor: Person Detect
+            //    FIX: "ON"/"OFF" chữ hoa (bản gốc "on"/"off" → HASS không nhận)
+            //    FIX: thêm device_class "occupancy"
+            // ----------------------------------------------------------------
             publishEntity("binary_sensor", "person_detected",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Person Detect\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"person_detected\",\"icon\":\"mdi:account-multiple\",\"availability_topic\":\""+baseTopic+"/availability\",\"payload_available\":\"online\",\"payload_not_available\":\"offline\"}");
+                    "{"
+                    + "\"device\":" + deviceJson + ","
+                    + "\"name\":\"Person Detect\","
+                    + "\"device_class\":\"occupancy\","
+                    + "\"state_topic\":\"" + baseTopic + "\","
+                    + "\"value_template\":\"{% if value_json.count > 0 %}ON{% else %}OFF{% endif %}\","
+                    + "\"unique_id\":\"" + deviceId + "_person_detected\","
+                    + "\"icon\":\"mdi:account-multiple\""
+                    + availJson
+                    + "}");
 
-            // 2. Sensor: Số người
+            // ----------------------------------------------------------------
+            // 2. Sensor: Số người phát hiện
+            //    FIX: thêm availability_topic (bản gốc thiếu)
+            //    IMPROVEMENT: thêm json_attributes_template để mang chi tiết faces[]
+            //                 thay thế luôn entity "face_details" bị xóa bên dưới
+            // ----------------------------------------------------------------
             publishEntity("sensor", "person_count",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\"}");
+                    "{"
+                    + "\"device\":" + deviceJson + ","
+                    + "\"name\":\"Số người phát hiện\","
+                    + "\"state_topic\":\"" + baseTopic + "\","
+                    + "\"value_template\":\"{{ value_json.count }}\","
+                    + "\"json_attributes_topic\":\"" + baseTopic + "\","
+                    + "\"json_attributes_template\":\"{{ value_json | tojson }}\","
+                    + "\"unique_id\":\"" + deviceId + "_person_count\","
+                    + "\"unit_of_measurement\":\"người\","
+                    + "\"icon\":\"mdi:account-multiple\""
+                    + availJson
+                    + "}");
 
+            // ----------------------------------------------------------------
             // 3. Sensor: Face Center X
+            //    FIX: thêm availability_topic (bản gốc thiếu)
+            // ----------------------------------------------------------------
             publishEntity("sensor", "face_center_x",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center X\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\",\"unique_id\":\"face_center_x\",\"icon\":\"mdi:axis-x-arrow\"}");
+                    "{"
+                    + "\"device\":" + deviceJson + ","
+                    + "\"name\":\"Face Center X\","
+                    + "\"state_topic\":\"" + baseTopic + "\","
+                    + "\"value_template\":\"{{ value_json.faces[0].cx | default(0) }}\","
+                    + "\"unique_id\":\"" + deviceId + "_face_center_x\","
+                    + "\"icon\":\"mdi:axis-x-arrow\""
+                    + availJson
+                    + "}");
 
+            // ----------------------------------------------------------------
             // 4. Sensor: Face Center Y
+            //    FIX: thêm availability_topic (bản gốc thiếu)
+            // ----------------------------------------------------------------
             publishEntity("sensor", "face_center_y",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Face Center Y\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\",\"unique_id\":\"face_center_y\",\"icon\":\"mdi:axis-y-arrow\"}");
+                    "{"
+                    + "\"device\":" + deviceJson + ","
+                    + "\"name\":\"Face Center Y\","
+                    + "\"state_topic\":\"" + baseTopic + "\","
+                    + "\"value_template\":\"{{ value_json.faces[0].cy | default(0) }}\","
+                    + "\"unique_id\":\"" + deviceId + "_face_center_y\","
+                    + "\"icon\":\"mdi:axis-y-arrow\""
+                    + availJson
+                    + "}");
 
-            // 5. Chi tiết khuôn mặt
-            publishEntity("sensor", "face_details",
-                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\"}");
+            // ----------------------------------------------------------------
+            // 5. REMOVED: "face_details" sensor bị xóa
+            //    Lý do: trùng value_template (value_json.count) với "person_count".
+            //    Chi tiết faces[] đã được chuyển sang json_attributes của "person_count".
+            //
+            //    Nếu muốn xóa entity cũ trên HASS, publish payload rỗng "" vào topic:
+            //    homeassistant/sensor/face_details/config
+            // ----------------------------------------------------------------
 
-            // Publish availability
+            // Publish availability = online
             MqttMessage avail = new MqttMessage("online".getBytes("UTF-8"));
             avail.setQos(1);
             avail.setRetained(true);
             client.publish(baseTopic + "/availability", avail);
 
-            Log.i(TAG, "✅ Đã publish đầy đủ Discovery");
+            Log.i(TAG, "✅ Discovery published: 4 entities (binary_sensor x1, sensor x3)");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
