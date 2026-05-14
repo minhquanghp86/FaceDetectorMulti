@@ -43,7 +43,7 @@ public class MqttManager {
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private StateListener stateListener;
 
-    private String brokerUrl = "tcp://192.168.1.100:1883";
+    private String brokerUrl = "tcp://192.168.10.2:1883";
     private String username = "";
     private String password = "";
     private String baseTopic = "face/detection";
@@ -63,7 +63,7 @@ public class MqttManager {
 
         String url = (brokerInput != null ? brokerInput.trim() : "");
         if (!url.startsWith("tcp://") && !url.startsWith("ws://") && !url.startsWith("ssl://")) {
-            if (url.isEmpty()) url = "tcp://192.168.1.100:1883";
+            if (url.isEmpty()) url = "tcp://192.168.10.2:1883";
             else if (url.contains(":")) url = "tcp://" + url;
             else url = "tcp://" + url + ":1883";
         }
