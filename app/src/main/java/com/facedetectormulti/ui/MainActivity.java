@@ -6,6 +6,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.util.Size;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -25,6 +26,7 @@ import androidx.preference.PreferenceManager;
 import com.facedetectormulti.R;
 import com.facedetectormulti.detection.FaceResult;
 import com.facedetectormulti.detection.MultiFaceDetector;
+import com.facedetectormulti.mqtt.MqttManager;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.ArrayList;
@@ -35,32 +37,25 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String TAG = "FaceDetectorMulti";
+    private static final String TAG = "MainActivity";
     private static final int PERMISSION_CAMERA = 100;
-    private static final int REQUEST_CODE_SETTINGS = 101;
-    private static final int REQUEST_CODE_REGISTRATION = 102;
+    private static final int REQUEST_SETTINGS  = 101;
 
-    // UI Components
-    private PreviewView previewView;
+    // UI
+    private PreviewView     previewView;
     private FaceOverlayView faceOverlay;
-    private TextView hudTextView;
-    private ImageButton switchCameraBtn;
-    private ImageButton settingsBtn;
-    private ImageButton registerBtn;
-    private ImageButton manageFacesBtn;
-    private TextView permissionDeniedText;
+    private ImageButton     switchCameraBtn, settingsBtn;
+    private TextView        permissionDeniedText;
+    private View            mqttStatusDot;
+    private TextView        mqttStatusText;
 
-    // Core Objects
+    // Core
     private MultiFaceDetector detector;
-    private ExecutorService cameraExecutor;
+    private MqttManager       mqttManager;
+    private ExecutorService   cameraExecutor;
     private ProcessCameraProvider cameraProvider;
     private CameraSelector currentCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
     private SharedPreferences prefs;
-
-    // State
-    private List<FaceResult> lastDetectedFaces = new ArrayList<>();
-    
-    // ✅ Cờ đánh dấu đã init detector xong chưa
     private boolean detectorReady = false;
 
     @Override
@@ -69,12 +64,11 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
-
         initViews();
         setupClickListeners();
-        initCameraExecutor();
+        cameraExecutor = Executors.newSingleThreadExecutor();
         initDetector();
-        applySettingsFromPrefs(); // ✅ Sẽ chạy an toàn vì detector đã được tạo
+        initMqtt();
 
         if (hasCameraPermission()) {
             startCamera();
@@ -84,99 +78,113 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        previewView = findViewById(R.id.cameraPreview);
-        faceOverlay = findViewById(R.id.faceOverlay);
-        hudTextView = findViewById(R.id.hudTextView);
-        switchCameraBtn = findViewById(R.id.switchCameraBtn);
-        settingsBtn = findViewById(R.id.settingsBtn);
-        registerBtn = findViewById(R.id.registerBtn);
-        
-        manageFacesBtn = findViewById(R.id.manageFacesBtn);
+        previewView          = findViewById(R.id.cameraPreview);
+        faceOverlay          = findViewById(R.id.faceOverlay);
+        switchCameraBtn      = findViewById(R.id.switchCameraBtn);
+        settingsBtn          = findViewById(R.id.settingsBtn);
         permissionDeniedText = findViewById(R.id.permissionDeniedText);
-        
+        mqttStatusDot        = findViewById(R.id.mqttStatusDot);
+        mqttStatusText       = findViewById(R.id.mqttStatusText);
         updateOverlayMirror();
     }
 
     private void setupClickListeners() {
         switchCameraBtn.setOnClickListener(v -> {
-            currentCamera = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA
+            currentCamera = (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA)
                 ? CameraSelector.DEFAULT_BACK_CAMERA
                 : CameraSelector.DEFAULT_FRONT_CAMERA;
-            
             switchCameraBtn.setEnabled(false);
             switchCameraBtn.setAlpha(0.5f);
-            
             cameraExecutor.execute(() -> {
-                try { Thread.sleep(100); } catch (InterruptedException ignored) {}
+                try { Thread.sleep(80); } catch (InterruptedException ignored) {}
                 runOnUiThread(() -> {
                     updateOverlayMirror();
                     startCamera();
                     switchCameraBtn.setEnabled(true);
-                    switchCameraBtn.setAlpha(1.0f);
+                    switchCameraBtn.setAlpha(1f);
                 });
             });
         });
 
-        settingsBtn.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivityForResult(intent, REQUEST_CODE_SETTINGS);
-        });
-
-        registerBtn.setOnClickListener(v -> {
-        // ✅ Luôn cho phép vào đăng ký, không cần kiểm tra face
-            Intent intent = new Intent(MainActivity.this, RegistrationActivity.class);
-            startActivityForResult(intent, REQUEST_CODE_REGISTRATION);
-        });
-
-        if (manageFacesBtn != null) {
-            manageFacesBtn.setOnClickListener(v -> {
-                Intent intent = new Intent(MainActivity.this, ManageFacesActivity.class);
-                startActivity(intent);
-            });
-        }
-
-        hudTextView.setOnLongClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivityForResult(intent, REQUEST_CODE_SETTINGS);
-            return true;
-        });
+        settingsBtn.setOnClickListener(v ->
+            startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
     }
 
     private void updateOverlayMirror() {
-        boolean isFront = currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA;
-        faceOverlay.setMirrorX(isFront);
+        faceOverlay.setMirrorX(currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA);
     }
 
-    private void initCameraExecutor() {
-        cameraExecutor = Executors.newSingleThreadExecutor();
-    }
+    // ── Detector ─────────────────────────────────────────────────────────
 
     private void initDetector() {
         try {
-            MultiFaceDetector.Config config = MultiFaceDetector.Config.createDefault()
-                .setEnableRecognition(true); // ✅ Bật recognition mặc định
-            
+            MultiFaceDetector.Config cfg = MultiFaceDetector.Config.createDefault();
+            cfg.frameIntervalMs = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 50);
+            cfg.accurateMode    = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
+            float mfs           = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.10f);
+            cfg.setMinFaceSize(mfs);
+
             detector = new MultiFaceDetector(
                 (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
-                    lastDetectedFaces = new ArrayList<>(results);
                     faceOverlay.update(results, processingMs);
-                    updateHud(results.size(), processingMs);
+                    if (mqttManager != null) {
+                        mqttManager.publishDetection(results, processingMs);
+                    }
                 }),
-                this,
-                config
+                cfg
             );
             detectorReady = true;
-            Log.d(TAG, "Detector initialized successfully");
+            Log.d(TAG, "Detector ready");
         } catch (Exception e) {
-            Log.e(TAG, "Failed to init detector: " + e.getMessage(), e);
+            Log.e(TAG, "Detector init failed: " + e.getMessage(), e);
             detectorReady = false;
         }
     }
 
-    private void updateHud(int count, long ms) {
-        long fps = ms > 0 ? 1000 / ms : 0;
-        hudTextView.setText(String.format("Faces: %d | FPS: %d | Time: %dms", count, fps, ms));
+    // ── MQTT ─────────────────────────────────────────────────────────────
+
+    private void initMqtt() {
+        mqttManager = new MqttManager();
+        mqttManager.setStateListener((state, msg) -> runOnUiThread(() -> updateMqttStatus(state, msg)));
+        applyMqttSettings();
     }
+
+    private void applyMqttSettings() {
+        if (mqttManager == null) return;
+
+        boolean enabled  = prefs.getBoolean(SettingsActivity.KEY_MQTT_ENABLED,  false);
+        String  broker   = prefs.getString(SettingsActivity.KEY_MQTT_BROKER,   "tcp://192.168.1.100:1883");
+        String  username = prefs.getString(SettingsActivity.KEY_MQTT_USERNAME,  "");
+        String  password = prefs.getString(SettingsActivity.KEY_MQTT_PASSWORD,  "");
+        String  topic    = prefs.getString(SettingsActivity.KEY_MQTT_TOPIC,     "face/detection");
+        int     qos      = prefs.getInt(SettingsActivity.KEY_MQTT_QOS,          0);
+
+        mqttManager.configure(broker, username, password, topic, qos);
+
+        if (enabled) {
+            if (!mqttManager.isConnected()) mqttManager.connect();
+        } else {
+            if (mqttManager.isConnected()) mqttManager.disconnect();
+            updateMqttStatus(MqttManager.State.DISCONNECTED, "MQTT tắt");
+        }
+    }
+
+    private void updateMqttStatus(MqttManager.State state, String msg) {
+        if (mqttStatusDot == null || mqttStatusText == null) return;
+        int color;
+        switch (state) {
+            case CONNECTED:    color = 0xFF00FF64; break;
+            case CONNECTING:   color = 0xFFFFAA00; break;
+            case ERROR:        color = 0xFFFF3333; break;
+            default:           color = 0xFF666666; break;
+        }
+        mqttStatusDot.setBackgroundColor(color);
+        // Truncate message for display
+        String display = msg.length() > 30 ? msg.substring(0, 27) + "..." : msg;
+        mqttStatusText.setText("MQTT: " + display);
+    }
+
+    // ── Camera ───────────────────────────────────────────────────────────
 
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
@@ -186,8 +194,7 @@ public class MainActivity extends AppCompatActivity {
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Camera start failed", e);
-                runOnUiThread(() -> 
-                    Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -196,15 +203,26 @@ public class MainActivity extends AppCompatActivity {
         if (cameraProvider == null) return;
         cameraProvider.unbindAll();
 
+        // Áp dụng resolution từ settings
+        String res = prefs.getString(SettingsActivity.KEY_RESOLUTION, "1280");
+        Size targetSize;
+        switch (res) {
+            case "640":  targetSize = new Size(640,  480);  break;
+            case "1920": targetSize = new Size(1920, 1080); break;
+            default:     targetSize = new Size(1280, 720);  break;
+        }
+
         Preview preview = new Preview.Builder()
             .setTargetRotation(previewView.getDisplay().getRotation())
             .build();
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
         ImageAnalysis analysis = new ImageAnalysis.Builder()
+            .setTargetResolution(targetSize)
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setTargetRotation(previewView.getDisplay().getRotation())
             .build();
+
         analysis.setAnalyzer(cameraExecutor, imageProxy -> {
             if (detector != null && detector.isReady()) {
                 detector.process(imageProxy);
@@ -215,124 +233,76 @@ public class MainActivity extends AppCompatActivity {
 
         try {
             cameraProvider.bindToLifecycle(this, currentCamera, preview, analysis);
-            Log.d(TAG, "Camera bound: " + 
-                (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA ? "Front" : "Back"));
         } catch (Exception e) {
-            Log.e(TAG, "Bind failed", e);
-            runOnUiThread(() -> 
-                Toast.makeText(this, "Bind error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            Log.e(TAG, "Bind failed: " + e.getMessage());
+            runOnUiThread(() -> Toast.makeText(this, "Bind error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
         }
     }
 
-    // ✅ SỬA: An toàn tuyệt đối
-    private void applySettingsFromPrefs() {
-        if (!detectorReady || detector == null) {
-            Log.w(TAG, "applySettingsFromPrefs: detector not ready, skipping");
-            return;
-        }
-        
-        try {
-            int frameInterval = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 100);
-            detector.setFrameIntervalMs(frameInterval);
-
-            // ✅ Đọc recognition threshold
-            float recThreshold = prefs.getFloat(SettingsActivity.KEY_RECOGNITION_THRESHOLD, 0.55f);
-            detector.setRecognitionThreshold(recThreshold);
-            
-            // ✅ Đọc enable recognition
-            boolean enableRec = prefs.getBoolean(SettingsActivity.KEY_ENABLE_RECOGNITION, true);
-            
-            // ✅ An toàn: kiểm tra config trước
-            MultiFaceDetector.Config config = detector.getCurrentConfig();
-            if (config != null) {
-                if (config.enableRecognition != enableRec) {
-                    detector.enableRecognition(enableRec);
-                    Log.d(TAG, "Recognition toggled to: " + enableRec);
-                }
-            } else {
-                Log.w(TAG, "getCurrentConfig() returned null, cannot toggle recognition");
-            }
-            
-            Log.d(TAG, "Settings applied: threshold=" + recThreshold + ", enableRec=" + enableRec);
-        } catch (Exception e) {
-            Log.e(TAG, "Error applying settings: " + e.getMessage(), e);
-        }
-    }
+    // ── Lifecycle ────────────────────────────────────────────────────────
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        
-        if (requestCode == REQUEST_CODE_SETTINGS && resultCode == RESULT_OK) {
-            applySettingsFromPrefs();
-        }
-        else if (requestCode == REQUEST_CODE_REGISTRATION && resultCode == RESULT_OK) {
-            Toast.makeText(this, "✓ Đã đăng ký khuôn mặt mới", Toast.LENGTH_SHORT).show();
-            // Làm mới detector
+        if (requestCode == REQUEST_SETTINGS && resultCode == RESULT_OK) {
+            // Áp dụng lại settings
             if (detector != null) {
-                detector.close();
+                MultiFaceDetector.Config cfg = detector.getCurrentConfig();
+                cfg.frameIntervalMs = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 50);
+                cfg.accurateMode    = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
+                cfg.setMinFaceSize(prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.10f));
+                detector.applyConfig(cfg);
             }
-            initDetector();
-            applySettingsFromPrefs();
-            if (cameraProvider != null) {
-                startCamera();
-            }
-        }
-    }
-
-    private boolean hasCameraPermission() {
-        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
-            == PackageManager.PERMISSION_GRANTED;
-    }
-
-    private void requestCameraPermission() {
-        ActivityCompat.requestPermissions(
-            this, new String[]{Manifest.permission.CAMERA}, PERMISSION_CAMERA);
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, 
-                                         @NonNull String[] permissions, 
-                                         @NonNull int[] results) {
-        super.onRequestPermissionsResult(requestCode, permissions, results);
-        if (requestCode == PERMISSION_CAMERA) {
-            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
-                if (permissionDeniedText != null) {
-                    permissionDeniedText.setVisibility(View.GONE);
-                }
-                startCamera();
-            } else {
-                if (permissionDeniedText != null) {
-                    permissionDeniedText.setVisibility(View.VISIBLE);
-                }
-                Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_LONG).show();
-            }
+            applyMqttSettings();
+            // Restart camera nếu resolution thay đổi
+            if (cameraProvider != null) startCamera();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (hasCameraPermission() && cameraProvider != null) {
-            startCamera();
-        }
-        applySettingsFromPrefs();
+        if (hasCameraPermission() && cameraProvider != null) startCamera();
+        applyMqttSettings();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (cameraProvider != null) {
-            cameraProvider.unbindAll();
-        }
+        if (cameraProvider != null) cameraProvider.unbindAll();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (detector != null) detector.close();
-        if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
-            cameraExecutor.shutdown();
+        if (detector != null)   detector.close();
+        if (mqttManager != null) mqttManager.close();
+        if (cameraExecutor != null && !cameraExecutor.isShutdown()) cameraExecutor.shutdown();
+    }
+
+    // ── Permission ───────────────────────────────────────────────────────
+
+    private boolean hasCameraPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestCameraPermission() {
+        ActivityCompat.requestPermissions(this,
+            new String[]{Manifest.permission.CAMERA}, PERMISSION_CAMERA);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, @NonNull String[] perms, @NonNull int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == PERMISSION_CAMERA) {
+            if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+                if (permissionDeniedText != null) permissionDeniedText.setVisibility(View.GONE);
+                startCamera();
+            } else {
+                if (permissionDeniedText != null) permissionDeniedText.setVisibility(View.VISIBLE);
+                Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_LONG).show();
+            }
         }
     }
 }
