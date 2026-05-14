@@ -29,8 +29,6 @@ import com.facedetectormulti.detection.MultiFaceDetector;
 import com.facedetectormulti.mqtt.MqttManager;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,20 +37,20 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
     private static final int PERMISSION_CAMERA = 100;
-    private static final int REQUEST_SETTINGS  = 101;
+    private static final int REQUEST_SETTINGS = 101;
 
     // UI
-    private PreviewView     previewView;
+    private PreviewView previewView;
     private FaceOverlayView faceOverlay;
-    private ImageButton     switchCameraBtn, settingsBtn;
-    private TextView        permissionDeniedText;
-    private View            mqttStatusDot;
-    private TextView        mqttStatusText;
+    private ImageButton switchCameraBtn, settingsBtn;
+    private TextView permissionDeniedText;
+    private View mqttStatusDot;
+    private TextView mqttStatusText;
 
     // Core
     private MultiFaceDetector detector;
-    private MqttManager       mqttManager;
-    private ExecutorService   cameraExecutor;
+    private MqttManager mqttManager;
+    private ExecutorService cameraExecutor;
     private ProcessCameraProvider cameraProvider;
     private CameraSelector currentCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
     private SharedPreferences prefs;
@@ -78,21 +76,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        previewView          = findViewById(R.id.cameraPreview);
-        faceOverlay          = findViewById(R.id.faceOverlay);
-        switchCameraBtn      = findViewById(R.id.switchCameraBtn);
-        settingsBtn          = findViewById(R.id.settingsBtn);
+        previewView = findViewById(R.id.cameraPreview);
+        faceOverlay = findViewById(R.id.faceOverlay);
+        switchCameraBtn = findViewById(R.id.switchCameraBtn);
+        settingsBtn = findViewById(R.id.settingsBtn);
         permissionDeniedText = findViewById(R.id.permissionDeniedText);
-        mqttStatusDot        = findViewById(R.id.mqttStatusDot);
-        mqttStatusText       = findViewById(R.id.mqttStatusText);
+        mqttStatusDot = findViewById(R.id.mqttStatusDot);
+        mqttStatusText = findViewById(R.id.mqttStatusText);
         updateOverlayMirror();
     }
 
     private void setupClickListeners() {
         switchCameraBtn.setOnClickListener(v -> {
             currentCamera = (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA)
-                ? CameraSelector.DEFAULT_BACK_CAMERA
-                : CameraSelector.DEFAULT_FRONT_CAMERA;
+                    ? CameraSelector.DEFAULT_BACK_CAMERA
+                    : CameraSelector.DEFAULT_FRONT_CAMERA;
             switchCameraBtn.setEnabled(false);
             switchCameraBtn.setAlpha(0.5f);
             cameraExecutor.execute(() -> {
@@ -107,41 +105,41 @@ public class MainActivity extends AppCompatActivity {
         });
 
         settingsBtn.setOnClickListener(v ->
-            startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
+                startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
     }
 
     private void updateOverlayMirror() {
         faceOverlay.setMirrorX(currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA);
     }
 
-    // ── Detector ─────────────────────────────────────────────────────────
+    // ==================== DETECTOR ====================
 
     private void initDetector() {
         try {
             MultiFaceDetector.Config cfg = MultiFaceDetector.Config.createDefault();
             cfg.frameIntervalMs = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 50);
-            cfg.accurateMode    = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
-            float mfs           = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.10f);
+            cfg.accurateMode = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
+            float mfs = prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.10f);
             cfg.setMinFaceSize(mfs);
 
             detector = new MultiFaceDetector(
-                (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
-                    faceOverlay.update(results, processingMs);
-                    if (mqttManager != null) {
-                        mqttManager.publishDetection(results, processingMs);
-                    }
-                }),
-                cfg
+                    (results, processingMs, imgW, imgH) -> runOnUiThread(() -> {
+                        faceOverlay.update(results, processingMs);
+                        if (mqttManager != null) {
+                            mqttManager.publishDetection(results, processingMs);
+                        }
+                    }),
+                    cfg
             );
             detectorReady = true;
-            Log.d(TAG, "Detector ready");
+            Log.d(TAG, "Detector initialized successfully");
         } catch (Exception e) {
-            Log.e(TAG, "Detector init failed: " + e.getMessage(), e);
+            Log.e(TAG, "Detector init failed", e);
             detectorReady = false;
         }
     }
 
-    // ── MQTT ─────────────────────────────────────────────────────────────
+    // ==================== MQTT ====================
 
     private void initMqtt() {
         mqttManager = new MqttManager();
@@ -152,39 +150,51 @@ public class MainActivity extends AppCompatActivity {
     private void applyMqttSettings() {
         if (mqttManager == null) return;
 
-        boolean enabled  = prefs.getBoolean(SettingsActivity.KEY_MQTT_ENABLED,  false);
-        String  broker   = prefs.getString(SettingsActivity.KEY_MQTT_BROKER,   "tcp://192.168.1.100:1883");
-        String  username = prefs.getString(SettingsActivity.KEY_MQTT_USERNAME,  "");
-        String  password = prefs.getString(SettingsActivity.KEY_MQTT_PASSWORD,  "");
-        String  topic    = prefs.getString(SettingsActivity.KEY_MQTT_TOPIC,     "face/detection");
-        int     qos      = prefs.getInt(SettingsActivity.KEY_MQTT_QOS,          0);
+        boolean enabled = prefs.getBoolean(SettingsActivity.KEY_MQTT_ENABLED, false);
+        String broker = prefs.getString(SettingsActivity.KEY_MQTT_BROKER, "tcp://192.168.1.100:1883");
+        String username = prefs.getString(SettingsActivity.KEY_MQTT_USERNAME, "");
+        String password = prefs.getString(SettingsActivity.KEY_MQTT_PASSWORD, "");
+        String topic = prefs.getString(SettingsActivity.KEY_MQTT_TOPIC, "face/detection");
+        int qos = prefs.getInt(SettingsActivity.KEY_MQTT_QOS, 0);
+        int publishInterval = prefs.getInt(SettingsActivity.KEY_MQTT_PUBLISH_INTERVAL, 250);
 
-        mqttManager.configure(broker, username, password, topic, qos);
+        mqttManager.configure(broker, username, password, topic, qos, publishInterval);
 
         if (enabled) {
-            if (!mqttManager.isConnected()) mqttManager.connect();
+            if (!mqttManager.isConnected()) {
+                mqttManager.connect();
+            }
         } else {
-            if (mqttManager.isConnected()) mqttManager.disconnect();
-            updateMqttStatus(MqttManager.State.DISCONNECTED, "MQTT tắt");
+            mqttManager.disconnect();
+            updateMqttStatus(MqttManager.State.DISCONNECTED, "MQTT đã tắt");
         }
     }
 
     private void updateMqttStatus(MqttManager.State state, String msg) {
         if (mqttStatusDot == null || mqttStatusText == null) return;
+
         int color;
         switch (state) {
-            case CONNECTED:    color = 0xFF00FF64; break;
-            case CONNECTING:   color = 0xFFFFAA00; break;
-            case ERROR:        color = 0xFFFF3333; break;
-            default:           color = 0xFF666666; break;
+            case CONNECTED:
+                color = 0xFF00FF64;
+                break;
+            case CONNECTING:
+                color = 0xFFFFAA00;
+                break;
+            case ERROR:
+                color = 0xFFFF3333;
+                break;
+            default:
+                color = 0xFF666666;
+                break;
         }
         mqttStatusDot.setBackgroundColor(color);
-        // Truncate message for display
-        String display = msg.length() > 30 ? msg.substring(0, 27) + "..." : msg;
+
+        String display = msg.length() > 35 ? msg.substring(0, 32) + "..." : msg;
         mqttStatusText.setText("MQTT: " + display);
     }
 
-    // ── Camera ───────────────────────────────────────────────────────────
+    // ==================== CAMERA ====================
 
     private void startCamera() {
         ListenableFuture<ProcessCameraProvider> future = ProcessCameraProvider.getInstance(this);
@@ -194,7 +204,8 @@ public class MainActivity extends AppCompatActivity {
                 bindCameraUseCases();
             } catch (ExecutionException | InterruptedException e) {
                 Log.e(TAG, "Camera start failed", e);
-                runOnUiThread(() -> Toast.makeText(this, "Camera error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                runOnUiThread(() -> Toast.makeText(this,
+                        "Lỗi camera: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -203,25 +214,30 @@ public class MainActivity extends AppCompatActivity {
         if (cameraProvider == null) return;
         cameraProvider.unbindAll();
 
-        // Áp dụng resolution từ settings
         String res = prefs.getString(SettingsActivity.KEY_RESOLUTION, "1280");
         Size targetSize;
         switch (res) {
-            case "640":  targetSize = new Size(640,  480);  break;
-            case "1920": targetSize = new Size(1920, 1080); break;
-            default:     targetSize = new Size(1280, 720);  break;
+            case "640":
+                targetSize = new Size(640, 480);
+                break;
+            case "1920":
+                targetSize = new Size(1920, 1080);
+                break;
+            default:
+                targetSize = new Size(1280, 720);
+                break;
         }
 
         Preview preview = new Preview.Builder()
-            .setTargetRotation(previewView.getDisplay().getRotation())
-            .build();
+                .setTargetRotation(previewView.getDisplay().getRotation())
+                .build();
         preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
         ImageAnalysis analysis = new ImageAnalysis.Builder()
-            .setTargetResolution(targetSize)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setTargetRotation(previewView.getDisplay().getRotation())
-            .build();
+                .setTargetResolution(targetSize)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setTargetRotation(previewView.getDisplay().getRotation())
+                .build();
 
         analysis.setAnalyzer(cameraExecutor, imageProxy -> {
             if (detector != null && detector.isReady()) {
@@ -234,62 +250,71 @@ public class MainActivity extends AppCompatActivity {
         try {
             cameraProvider.bindToLifecycle(this, currentCamera, preview, analysis);
         } catch (Exception e) {
-            Log.e(TAG, "Bind failed: " + e.getMessage());
-            runOnUiThread(() -> Toast.makeText(this, "Bind error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            Log.e(TAG, "Bind camera failed", e);
         }
     }
 
-    // ── Lifecycle ────────────────────────────────────────────────────────
+    // ==================== LIFECYCLE ====================
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_SETTINGS && resultCode == RESULT_OK) {
-            // Áp dụng lại settings
+            // Cập nhật detector
             if (detector != null) {
                 MultiFaceDetector.Config cfg = detector.getCurrentConfig();
                 cfg.frameIntervalMs = prefs.getInt(SettingsActivity.KEY_FRAME_INTERVAL, 50);
-                cfg.accurateMode    = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
+                cfg.accurateMode = prefs.getBoolean(SettingsActivity.KEY_ACCURATE_MODE, false);
                 cfg.setMinFaceSize(prefs.getFloat(SettingsActivity.KEY_MIN_FACE_SIZE, 0.10f));
                 detector.applyConfig(cfg);
             }
+            // Cập nhật MQTT
             applyMqttSettings();
+
             // Restart camera nếu resolution thay đổi
-            if (cameraProvider != null) startCamera();
+            if (cameraProvider != null) {
+                startCamera();
+            }
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (hasCameraPermission() && cameraProvider != null) startCamera();
+        if (hasCameraPermission() && cameraProvider != null) {
+            startCamera();
+        }
         applyMqttSettings();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        if (cameraProvider != null) cameraProvider.unbindAll();
+        if (cameraProvider != null) {
+            cameraProvider.unbindAll();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (detector != null)   detector.close();
+        if (detector != null) detector.close();
         if (mqttManager != null) mqttManager.close();
-        if (cameraExecutor != null && !cameraExecutor.isShutdown()) cameraExecutor.shutdown();
+        if (cameraExecutor != null && !cameraExecutor.isShutdown()) {
+            cameraExecutor.shutdown();
+        }
     }
 
-    // ── Permission ───────────────────────────────────────────────────────
+    // ==================== PERMISSION ====================
 
     private boolean hasCameraPermission() {
         return ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-            == PackageManager.PERMISSION_GRANTED;
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void requestCameraPermission() {
         ActivityCompat.requestPermissions(this,
-            new String[]{Manifest.permission.CAMERA}, PERMISSION_CAMERA);
+                new String[]{Manifest.permission.CAMERA}, PERMISSION_CAMERA);
     }
 
     @Override
