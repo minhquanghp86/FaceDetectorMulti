@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * MqttManager - Hỗ trợ MQTT Discovery đầy đủ cho Home Assistant
+ * MqttManager - Tối ưu MQTT Discovery cho Home Assistant
  */
 public class MqttManager {
 
@@ -133,49 +133,23 @@ public class MqttManager {
         }
     }
 
-    /**
-     * Publish đầy đủ Discovery
-     */
     private void publishDiscovery() {
         String deviceId = "face_detector_android";
 
         try {
-            // 1. Binary Sensor: Có người / Không người
-            publishEntity("binary_sensor", "face_detected",
-                "{\n" +
-                "  \"device\": {\"identifiers\": [\""+deviceId+"\"], \"name\": \"Face Detector\"},\n" +
-                "  \"name\": \"Có người\",\n" +
-                "  \"state_topic\": \""+baseTopic+"\",\n" +
-                "  \"value_template\": \"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\n" +
-                "  \"unique_id\": \"face_detector_detected\",\n" +
-                "  \"icon\": \"mdi:account-multiple\"\n" +
-                "}");
+            // Binary Sensor: Có người
+            publishEntity("binary_sensor", "face_detected", 
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Có người\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{% if value_json.count > 0 %}on{% else %}off{% endif %}\",\"unique_id\":\"face_detected\",\"icon\":\"mdi:account-multiple\"}");
 
-            // 2. Sensor: Số người
-            publishEntity("sensor", "person_count",
-                "{\n" +
-                "  \"device\": {\"identifiers\": [\""+deviceId+"\"]},\n" +
-                "  \"name\": \"Số người phát hiện\",\n" +
-                "  \"state_topic\": \""+baseTopic+"\",\n" +
-                "  \"value_template\": \"{{ value_json.count }}\",\n" +
-                "  \"unique_id\": \"face_detector_count\",\n" +
-                "  \"unit_of_measurement\": \"người\",\n" +
-                "  \"icon\": \"mdi:account-multiple\"\n" +
-                "}");
+            // Sensor: Số người
+            publishEntity("sensor", "person_count", 
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Số người phát hiện\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"unique_id\":\"person_count\",\"unit_of_measurement\":\"người\",\"icon\":\"mdi:account-multiple\"}");
 
-            // 3. Sensor: Chi tiết khuôn mặt (JSON attributes)
-            publishEntity("sensor", "face_details",
-                "{\n" +
-                "  \"device\": {\"identifiers\": [\""+deviceId+"\"]},\n" +
-                "  \"name\": \"Chi tiết khuôn mặt\",\n" +
-                "  \"state_topic\": \""+baseTopic+"\",\n" +
-                "  \"value_template\": \"{{ value_json.count }}\",\n" +
-                "  \"json_attributes_template\": \"{{ value_json | tojson }}\",\n" +
-                "  \"unique_id\": \"face_detector_details\",\n" +
-                "  \"icon\": \"mdi:face-recognition\"\n" +
-                "}");
+            // Sensor: Chi tiết khuôn mặt
+            publishEntity("sensor", "face_details", 
+                "{\"device\":{\"identifiers\":[\""+deviceId+"\"]},\"name\":\"Chi tiết khuôn mặt\",\"state_topic\":\""+baseTopic+"\",\"value_template\":\"{{ value_json.count }}\",\"json_attributes_template\":\"{{ value_json | tojson }}\",\"unique_id\":\"face_details\",\"icon\":\"mdi:face-recognition\"}");
 
-            Log.i(TAG, "✅ Đã publish 3 thực thể MQTT Discovery");
+            Log.i(TAG, "✅ Đã publish Discovery thành công");
 
         } catch (Exception e) {
             Log.e(TAG, "Discovery failed", e);
@@ -205,6 +179,7 @@ public class MqttManager {
                 msg.setQos(qos);
                 msg.setRetained(false);
                 client.publish(baseTopic, msg);
+                Log.d(TAG, "Published: count = " + faces.size());
             } catch (Exception e) {
                 Log.w(TAG, "Publish failed", e);
             }
