@@ -11,123 +11,32 @@
         android:orientation="vertical"
         android:padding="8dp">
 
-        <!-- Tiêu đề -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⚙ Cài đặt nhận diện"
+            android:text="⚙ Cài đặt"
             android:textColor="#00FF50"
             android:textSize="20sp"
             android:textStyle="bold"
             android:paddingBottom="16dp"/>
 
-        <!-- ═══════════════════════════════════════ -->
-        <!-- ✅ MỚI: Enable Recognition Switch -->
-        <!-- ═══════════════════════════════════════ -->
+        <!-- ═══ SECTION: DETECTION ═══ -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="🔍 Nhận dạng khuôn mặt (Face Recognition)"
+            android:text="📷  PHÁT HIỆN KHUÔN MẶT"
             android:textColor="#00AAFF"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:paddingBottom="4dp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Bật để nhận dạng người đã đăng ký. Tắt nếu chỉ cần phát hiện mặt."
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:paddingBottom="8dp"/>
-
-        <Switch
-            android:id="@+id/switch_enable_recognition"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Bật nhận dạng (Recognition)"
-            android:textColor="#FFFFFF"
             android:textSize="14sp"
-            android:thumbTint="#00AAFF"
-            android:trackTint="#001122"
-            android:checked="true"/>
-
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="#333333" android:layout_marginVertical="16dp"/>
-
-        <!-- ═══════════════════════════════════════ -->
-        <!-- ✅ MỚI: Recognition Threshold -->
-        <!-- ═══════════════════════════════════════ -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Ngưỡng nhận dạng (Recognition Threshold)"
-            android:textColor="#CCCCCC"
-            android:textSize="14sp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Cao hơn → chính xác hơn nhưng dễ bỏ sót. Thấp hơn → dễ nhận dạng hơn nhưng có thể sai."
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:paddingBottom="4dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Dễ"
-                android:textColor="#FF4444"
-                android:textSize="12sp"
-                android:paddingEnd="8dp"/>
-
-            <SeekBar
-                android:id="@+id/seek_recognition_threshold"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:progressTint="#00AAFF"
-                android:thumbTint="#00AAFF"
-                android:max="85"
-                android:progress="45"/>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Chính xác"
-                android:textColor="#00FF50"
-                android:textSize="12sp"
-                android:paddingStart="8dp"/>
-        </LinearLayout>
-
-        <TextView
-            android:id="@+id/tv_recognition_threshold_val"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#00AAFF"
-            android:textSize="16sp"
             android:textStyle="bold"
-            android:gravity="center"
-            android:paddingTop="4dp"
-            android:text="0.55"/>
+            android:paddingBottom="12dp"/>
 
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="#333333" android:layout_marginVertical="16dp"/>
-
-        <!-- ═══ minFaceSize ═══ -->
+        <!-- Min Face Size -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Kích thước mặt tối thiểu (minFaceSize)"
             android:textColor="#CCCCCC"
             android:textSize="14sp"/>
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -135,13 +44,11 @@
             android:textColor="#888888"
             android:textSize="12sp"
             android:paddingBottom="4dp"/>
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-
             <SeekBar
                 android:id="@+id/seek_min_face_size"
                 android:layout_width="0dp"
@@ -150,8 +57,7 @@
                 android:progressTint="#00FF50"
                 android:thumbTint="#00FF50"
                 android:max="25"
-                android:progress="12"/>
-
+                android:progress="5"/>
             <TextView
                 android:id="@+id/tv_min_face_size_val"
                 android:layout_width="52dp"
@@ -160,81 +66,27 @@
                 android:textSize="14sp"
                 android:gravity="end"
                 android:paddingStart="8dp"
-                android:text="0.12"/>
+                android:text="0.10"/>
         </LinearLayout>
 
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- ═══ minConfidence Filter ═══ -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Ngưỡng lọc kết quả (Min Confidence)"
-            android:textColor="#CCCCCC"
-            android:textSize="14sp"/>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Lớn hơn → ít box ảo, nhưng có thể bỏ sót face mờ"
-            android:textColor="#888888"
-            android:textSize="12sp"
-            android:paddingBottom="4dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <SeekBar
-                android:id="@+id/seek_min_confidence"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:progressTint="#00FF50"
-                android:thumbTint="#00FF50"
-                android:max="100"
-                android:progress="50"/>
-
-            <TextView
-                android:id="@+id/tv_min_confidence_val"
-                android:layout_width="52dp"
-                android:layout_height="wrap_content"
-                android:textColor="#FFFFFF"
-                android:textSize="14sp"
-                android:gravity="end"
-                android:paddingStart="8dp"
-                android:text="0.50"/>
-        </LinearLayout>
-
-        <View android:layout_width="match_parent" android:layout_height="1dp"
-            android:background="#333333" android:layout_marginVertical="16dp"/>
-
-        <!-- ═══ Performance Mode ═══ -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Chế độ nhận diện (cần restart camera)"
-            android:textColor="#CCCCCC"
-            android:textSize="14sp"
-            android:paddingBottom="8dp"/>
-
+        <!-- Accurate Mode -->
         <Switch
             android:id="@+id/switch_perf_mode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Accurate (chính xác, chậm hơn)"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:text="Chế độ Accurate (chính xác hơn, chậm hơn — cần restart camera)"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
             android:thumbTint="#00FF50"
             android:trackTint="#004422"/>
 
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- ═══ Resolution ═══ -->
+        <!-- Resolution -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -242,35 +94,31 @@
             android:textColor="#CCCCCC"
             android:textSize="14sp"
             android:paddingBottom="8dp"/>
-
         <RadioGroup
             android:id="@+id/rg_resolution"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
-
             <RadioButton
                 android:id="@+id/rb_res_640"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="640×480  (nhanh, pin tiết kiệm)"
+                android:text="640×480  (nhanh nhất, tiết kiệm pin)"
                 android:textColor="#CCCCCC"
-                android:buttonTint="#00FF50"
-                android:checked="true"/>
-
+                android:buttonTint="#00FF50"/>
             <RadioButton
                 android:id="@+id/rb_res_1280"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="1280×720  (cân bằng — khuyến nghị)"
                 android:textColor="#CCCCCC"
-                android:buttonTint="#00FF50"/>
-
+                android:buttonTint="#00FF50"
+                android:checked="true"/>
             <RadioButton
                 android:id="@+id/rb_res_1920"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="1920×1080  (chi tiết, tốn pin/CPU)"
+                android:text="1920×1080  (chi tiết nhất, tốn CPU)"
                 android:textColor="#CCCCCC"
                 android:buttonTint="#00FF50"/>
         </RadioGroup>
@@ -278,28 +126,25 @@
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- ═══ Frame Throttle ═══ -->
+        <!-- Frame Interval -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Giới hạn FPS xử lý (Frame Throttle)"
+            android:text="Khoảng cách frame xử lý (ms)"
             android:textColor="#CCCCCC"
             android:textSize="14sp"/>
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Lớn hơn → ít frame xử lý, tiết kiệm pin, mượt hơn"
+            android:text="0 = xử lý tất cả frame | 50ms = ~20fps | 100ms = ~10fps"
             android:textColor="#888888"
             android:textSize="12sp"
             android:paddingBottom="4dp"/>
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
-
             <SeekBar
                 android:id="@+id/seek_frame_interval"
                 android:layout_width="0dp"
@@ -308,8 +153,7 @@
                 android:progressTint="#00FF50"
                 android:thumbTint="#00FF50"
                 android:max="200"
-                android:progress="100"/>
-
+                android:progress="50"/>
             <TextView
                 android:id="@+id/tv_frame_interval_val"
                 android:layout_width="64dp"
@@ -318,13 +162,185 @@
                 android:textSize="14sp"
                 android:gravity="end"
                 android:paddingStart="8dp"
-                android:text="100ms"/>
+                android:text="50ms"/>
         </LinearLayout>
 
+        <!-- ═══ SECTION: MQTT ═══ -->
+        <View android:layout_width="match_parent" android:layout_height="2dp"
+            android:background="#00AAFF" android:layout_marginVertical="20dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📡  KẾT NỐI MQTT"
+            android:textColor="#00AAFF"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingBottom="4dp"/>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Đẩy kết quả phát hiện khuôn mặt lên broker MQTT theo thời gian thực."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="12dp"/>
+
+        <!-- Enable MQTT -->
+        <Switch
+            android:id="@+id/switch_mqtt_enabled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bật MQTT"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:thumbTint="#00AAFF"
+            android:trackTint="#001133"
+            android:paddingBottom="16dp"/>
+
+        <!-- Broker URL -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Broker URL"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_broker"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="tcp://192.168.1.100:1883"
+            android:hintTextColor="#555555"
+            android:inputType="textUri"
+            android:padding="10dp"
+            android:text="tcp://192.168.1.100:1883"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Username -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Username (để trống nếu không có xác thực)"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_username"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="username"
+            android:hintTextColor="#555555"
+            android:inputType="text"
+            android:padding="10dp"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Password -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Password"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_password"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="password"
+            android:hintTextColor="#555555"
+            android:inputType="textPassword"
+            android:padding="10dp"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- Topic -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Topic"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <EditText
+            android:id="@+id/et_mqtt_topic"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="#2A2A2A"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp"
+            android:hint="face/detection"
+            android:hintTextColor="#555555"
+            android:inputType="text"
+            android:padding="10dp"
+            android:text="face/detection"
+            android:singleLine="true"
+            android:layout_marginBottom="12dp"/>
+
+        <!-- QoS -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="QoS"
+            android:textColor="#CCCCCC"
+            android:textSize="13sp"
+            android:paddingBottom="4dp"/>
+        <RadioGroup
+            android:id="@+id/rg_mqtt_qos"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <RadioButton
+                android:id="@+id/rb_qos_0"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 0 (nhanh nhất)"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"
+                android:checked="true"
+                android:layout_marginEnd="12dp"/>
+            <RadioButton
+                android:id="@+id/rb_qos_1"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 1"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"
+                android:layout_marginEnd="12dp"/>
+            <RadioButton
+                android:id="@+id/rb_qos_2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="QoS 2"
+                android:textColor="#CCCCCC"
+                android:buttonTint="#00AAFF"/>
+        </RadioGroup>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📋 Payload mẫu: {\"ts\":1234567890,\"count\":1,\"ms\":45,\"faces\":[{\"id\":1,\"left\":0.12,\"top\":0.20,\"right\":0.38,\"bottom\":0.68,\"cx\":0.25,\"cy\":0.44,\"w\":0.26,\"h\":0.48}]}"
+            android:textColor="#666666"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:paddingTop="8dp"
+            android:paddingBottom="4dp"/>
+
+        <!-- ═══ Reset ═══ -->
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:background="#333333" android:layout_marginVertical="16dp"/>
 
-        <!-- Reset button -->
         <Button
             android:id="@+id/btn_reset_defaults"
             android:layout_width="match_parent"
@@ -332,17 +348,16 @@
             android:text="↺  Reset về mặc định"
             android:textColor="#FF4444"
             android:backgroundTint="#2A1010"
-            android:layout_marginTop="8dp"/>
+            android:layout_marginBottom="8dp"/>
 
-        <!-- Save hint -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="⚠ Cài đặt được lưu tự động. Restart camera để áp dụng thay đổi Resolution/Performance."
-            android:textColor="#888888"
+            android:text="⚠ Cài đặt lưu tự động. Thay đổi Resolution/Accurate Mode cần restart camera."
+            android:textColor="#666666"
             android:textSize="11sp"
             android:gravity="center"
-            android:paddingTop="12dp"/>
+            android:paddingBottom="20dp"/>
 
     </LinearLayout>
 </ScrollView>
