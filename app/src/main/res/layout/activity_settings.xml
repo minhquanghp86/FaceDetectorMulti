@@ -21,6 +21,105 @@
             android:textStyle="bold"
             android:paddingBottom="16dp"/>
 
+        <!-- ═══════════════════════════════════════ -->
+        <!-- ✅ MỚI: Enable Recognition Switch -->
+        <!-- ═══════════════════════════════════════ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔍 Nhận dạng khuôn mặt (Face Recognition)"
+            android:textColor="#00AAFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:paddingBottom="4dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bật để nhận dạng người đã đăng ký. Tắt nếu chỉ cần phát hiện mặt."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="8dp"/>
+
+        <Switch
+            android:id="@+id/switch_enable_recognition"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bật nhận dạng (Recognition)"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:thumbTint="#00AAFF"
+            android:trackTint="#001122"
+            android:checked="true"/>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <!-- ═══════════════════════════════════════ -->
+        <!-- ✅ MỚI: Recognition Threshold -->
+        <!-- ═══════════════════════════════════════ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ngưỡng nhận dạng (Recognition Threshold)"
+            android:textColor="#CCCCCC"
+            android:textSize="14sp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Cao hơn → chính xác hơn nhưng dễ bỏ sót. Thấp hơn → dễ nhận dạng hơn nhưng có thể sai."
+            android:textColor="#888888"
+            android:textSize="12sp"
+            android:paddingBottom="4dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dễ"
+                android:textColor="#FF4444"
+                android:textSize="12sp"
+                android:paddingEnd="8dp"/>
+
+            <SeekBar
+                android:id="@+id/seek_recognition_threshold"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:progressTint="#00AAFF"
+                android:thumbTint="#00AAFF"
+                android:max="85"
+                android:progress="45"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chính xác"
+                android:textColor="#00FF50"
+                android:textSize="12sp"
+                android:paddingStart="8dp"/>
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tv_recognition_threshold_val"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#00AAFF"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:paddingTop="4dp"
+            android:text="0.55"/>
+
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
         <!-- ═══ minFaceSize ═══ -->
         <TextView
             android:layout_width="match_parent"
@@ -47,7 +146,8 @@
                 android:id="@+id/seek_min_face_size"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"                android:progressTint="#00FF50"
+                android:layout_weight="1"
+                android:progressTint="#00FF50"
                 android:thumbTint="#00FF50"
                 android:max="25"
                 android:progress="12"/>
@@ -97,6 +197,7 @@
                 android:thumbTint="#00FF50"
                 android:max="100"
                 android:progress="50"/>
+
             <TextView
                 android:id="@+id/tv_min_confidence_val"
                 android:layout_width="52dp"
@@ -145,7 +246,8 @@
         <RadioGroup
             android:id="@+id/rg_resolution"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"            android:orientation="vertical">
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
             <RadioButton
                 android:id="@+id/rb_res_640"
@@ -194,7 +296,8 @@
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"            android:orientation="horizontal"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center_vertical">
 
             <SeekBar

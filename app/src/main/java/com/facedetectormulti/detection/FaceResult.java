@@ -1,27 +1,42 @@
 package com.facedetectormulti.detection;
 
-import android.graphics.RectF;
-
+/**
+ * Represents a detected face with normalized bounding box.
+ * boxNorm: float[4] = {left, top, right, bottom} normalized to [0, 1]
+ */
 public class FaceResult {
     public final int trackingId;
-    public final RectF boxNorm;  // normalized [0,1]
-    public final float eulerY;   // head rotation Y
-    public final float eulerZ;   // head rotation Z
-    public final float smileProbability;
+    public final float[] boxNorm;  // ✅ float[4]: {left, top, right, bottom}
+    public final float smilingProbability;
+    public final float eulerY;
+    public final float eulerZ;
     public final float leftEyeOpenProbability;
     public final float rightEyeOpenProbability;
+    public final long timestamp;
 
-    public FaceResult(int trackingId, RectF boxNorm, float eulerY, float eulerZ,
-                     float smileProbability, float leftEyeOpen, float rightEyeOpen) {
+    // ✅ Constructor chính: nhận float[]
+    public FaceResult(int trackingId, float[] boxNorm, float smilingProbability,
+                     float eulerY, float eulerZ, float leftEyeOpen, 
+                     float rightEyeOpen, long timestamp) {
         this.trackingId = trackingId;
         this.boxNorm = boxNorm;
+        this.smilingProbability = smilingProbability;
         this.eulerY = eulerY;
         this.eulerZ = eulerZ;
-        this.smileProbability = smileProbability;
         this.leftEyeOpenProbability = leftEyeOpen;
         this.rightEyeOpenProbability = rightEyeOpen;
+        this.timestamp = timestamp;
     }
 
-    public float centerX() { return (boxNorm.left + boxNorm.right) / 2f; }
-    public float centerY() { return (boxNorm.top + boxNorm.bottom) / 2f; }
+    // ✅ Convenience constructor cho detection cơ bản
+    public FaceResult(int trackingId, float left, float top, float right, float bottom,
+                     float smilingProbability, float eulerY, long timestamp) {
+        this(trackingId, new float[]{left, top, right, bottom}, smilingProbability,
+             eulerY, 0f, -1f, -1f, timestamp);
+    }
+
+    public float centerX() { return (boxNorm[0] + boxNorm[2]) / 2f; }
+    public float centerY() { return (boxNorm[1] + boxNorm[3]) / 2f; }
+    public float width() { return boxNorm[2] - boxNorm[0]; }
+    public float height() { return boxNorm[3] - boxNorm[1]; }
 }

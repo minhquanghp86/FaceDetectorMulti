@@ -23,6 +23,8 @@ public class SettingsActivity extends AppCompatActivity {
     public static final String KEY_ACCURATE_MODE = "pref_accurate_mode";
     public static final String KEY_RESOLUTION = "pref_resolution";
     public static final String KEY_FRAME_INTERVAL = "pref_frame_interval";
+    public static final String KEY_ENABLE_RECOGNITION = "pref_enable_recognition";      // ✅ MỚI
+    public static final String KEY_RECOGNITION_THRESHOLD = "pref_recognition_threshold"; // ✅ MỚI
 
     // Default values
     private static final float DEFAULT_MIN_FACE_SIZE = 0.12f;
@@ -30,11 +32,13 @@ public class SettingsActivity extends AppCompatActivity {
     private static final boolean DEFAULT_ACCURATE_MODE = false;
     private static final String DEFAULT_RESOLUTION = "1280";
     private static final int DEFAULT_FRAME_INTERVAL = 100;
+    private static final boolean DEFAULT_ENABLE_RECOGNITION = true;     // ✅ MỚI
+    private static final float DEFAULT_RECOGNITION_THRESHOLD = 0.55f;   // ✅ MỚI
 
     // UI components
-    private SeekBar seekMinFaceSize, seekMinConfidence, seekFrameInterval;
-    private TextView tvMinFaceSizeVal, tvMinConfidenceVal, tvFrameIntervalVal;
-    private Switch switchPerfMode;
+    private SeekBar seekMinFaceSize, seekMinConfidence, seekFrameInterval, seekRecognitionThreshold; // ✅ Thêm
+    private TextView tvMinFaceSizeVal, tvMinConfidenceVal, tvFrameIntervalVal, tvRecognitionThresholdVal; // ✅ Thêm
+    private Switch switchPerfMode, switchEnableRecognition; // ✅ Thêm
     private RadioGroup rgResolution;
     private RadioButton rbRes640, rbRes1280, rbRes1920;
     private Button btnResetDefaults;
@@ -47,7 +51,8 @@ public class SettingsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_settings);
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
-        initViews();        loadSettings();
+        initViews();
+        loadSettings();
         setupListeners();
     }
 
@@ -55,17 +60,20 @@ public class SettingsActivity extends AppCompatActivity {
         seekMinFaceSize = findViewById(R.id.seek_min_face_size);
         seekMinConfidence = findViewById(R.id.seek_min_confidence);
         seekFrameInterval = findViewById(R.id.seek_frame_interval);
-        
+        seekRecognitionThreshold = findViewById(R.id.seek_recognition_threshold); // ✅ MỚI
+
         tvMinFaceSizeVal = findViewById(R.id.tv_min_face_size_val);
         tvMinConfidenceVal = findViewById(R.id.tv_min_confidence_val);
         tvFrameIntervalVal = findViewById(R.id.tv_frame_interval_val);
-        
+        tvRecognitionThresholdVal = findViewById(R.id.tv_recognition_threshold_val); // ✅ MỚI
+
         switchPerfMode = findViewById(R.id.switch_perf_mode);
+        switchEnableRecognition = findViewById(R.id.switch_enable_recognition); // ✅ MỚI
         rgResolution = findViewById(R.id.rg_resolution);
         rbRes640 = findViewById(R.id.rb_res_640);
         rbRes1280 = findViewById(R.id.rb_res_1280);
         rbRes1920 = findViewById(R.id.rb_res_1920);
-        
+
         btnResetDefaults = findViewById(R.id.btn_reset_defaults);
     }
 
@@ -86,6 +94,15 @@ public class SettingsActivity extends AppCompatActivity {
         seekFrameInterval.setProgress(frameInterval);
         tvFrameIntervalVal.setText(frameInterval + "ms");
 
+        // ✅ MỚI: Recognition Threshold: 0.10~0.95 → SeekBar 0~85
+        float recThreshold = prefs.getFloat(KEY_RECOGNITION_THRESHOLD, DEFAULT_RECOGNITION_THRESHOLD);
+        seekRecognitionThreshold.setProgress(Math.round((recThreshold - 0.10f) * 100));
+        tvRecognitionThresholdVal.setText(String.format("%.2f", recThreshold));
+
+        // ✅ MỚI: Enable Recognition
+        boolean enableRec = prefs.getBoolean(KEY_ENABLE_RECOGNITION, DEFAULT_ENABLE_RECOGNITION);
+        switchEnableRecognition.setChecked(enableRec);
+
         // Performance Mode
         boolean accurate = prefs.getBoolean(KEY_ACCURATE_MODE, DEFAULT_ACCURATE_MODE);
         switchPerfMode.setChecked(accurate);
@@ -96,7 +113,8 @@ public class SettingsActivity extends AppCompatActivity {
             case "640": rbRes640.setChecked(true); break;
             case "1920": rbRes1920.setChecked(true); break;
             default: rbRes1280.setChecked(true); break;
-        }    }
+        }
+    }
 
     private void setupListeners() {
         // Min Face Size SeekBar
@@ -105,8 +123,6 @@ public class SettingsActivity extends AppCompatActivity {
                 float value = 0.05f + progress * 0.01f;
                 tvMinFaceSizeVal.setText(String.format("%.2f", value));
                 prefs.edit().putFloat(KEY_MIN_FACE_SIZE, value).apply();
-                // Áp dụng ngay cho detector (nếu có callback)
-                notifySettingsChanged();
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -118,7 +134,6 @@ public class SettingsActivity extends AppCompatActivity {
                 float value = progress / 100f;
                 tvMinConfidenceVal.setText(String.format("%.2f", value));
                 prefs.edit().putFloat(KEY_MIN_CONFIDENCE, value).apply();
-                notifySettingsChanged();
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
@@ -129,10 +144,27 @@ public class SettingsActivity extends AppCompatActivity {
             @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
                 tvFrameIntervalVal.setText(progress + "ms");
                 prefs.edit().putInt(KEY_FRAME_INTERVAL, progress).apply();
-                notifySettingsChanged();
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        // ✅ MỚI: Recognition Threshold SeekBar
+        seekRecognitionThreshold.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                float value = 0.10f + progress * 0.01f;
+                tvRecognitionThresholdVal.setText(String.format("%.2f", value));
+                prefs.edit().putFloat(KEY_RECOGNITION_THRESHOLD, value).apply();
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+
+        // ✅ MỚI: Enable Recognition Switch
+        switchEnableRecognition.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            prefs.edit().putBoolean(KEY_ENABLE_RECOGNITION, isChecked).apply();
+            String msg = isChecked ? "✅ Recognition enabled" : "⏸ Recognition disabled";
+            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
         });
 
         // Performance Mode Switch
@@ -145,7 +177,8 @@ public class SettingsActivity extends AppCompatActivity {
         rgResolution.setOnCheckedChangeListener((group, checkedId) -> {
             String value;
             if (checkedId == R.id.rb_res_640) value = "640";
-            else if (checkedId == R.id.rb_res_1920) value = "1920";            else value = "1280";
+            else if (checkedId == R.id.rb_res_1920) value = "1920";
+            else value = "1280";
             prefs.edit().putString(KEY_RESOLUTION, value).apply();
             Toast.makeText(this, "⚠ Cần restart camera để áp dụng", Toast.LENGTH_SHORT).show();
         });
@@ -158,18 +191,12 @@ public class SettingsActivity extends AppCompatActivity {
                 .putBoolean(KEY_ACCURATE_MODE, DEFAULT_ACCURATE_MODE)
                 .putString(KEY_RESOLUTION, DEFAULT_RESOLUTION)
                 .putInt(KEY_FRAME_INTERVAL, DEFAULT_FRAME_INTERVAL)
+                .putBoolean(KEY_ENABLE_RECOGNITION, DEFAULT_ENABLE_RECOGNITION)       // ✅ MỚI
+                .putFloat(KEY_RECOGNITION_THRESHOLD, DEFAULT_RECOGNITION_THRESHOLD)    // ✅ MỚI
                 .apply();
             loadSettings();
-            notifySettingsChanged();
             Toast.makeText(this, "✓ Đã reset về mặc định", Toast.LENGTH_SHORT).show();
         });
-    }
-
-    // ✅ Notify MainActivity để áp dụng settings runtime (cho params có thể update)
-    private void notifySettingsChanged() {
-        // Dùng LocalBroadcastManager hoặc callback interface để thông báo
-        // Đơn giản: dùng EventBus pattern qua SharedPreferences listener
-        // Hoặc: MainActivity có thể register SharedPreferences.OnSharedPreferenceChangeListener
     }
 
     @Override
