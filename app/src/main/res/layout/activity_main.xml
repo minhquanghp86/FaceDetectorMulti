@@ -16,7 +16,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <!-- Camera Switch (top-right) -->
+    <!-- 1. Chuyển camera (top-right) -->
     <ImageButton
         android:id="@+id/switchCameraBtn"
         android:layout_width="48dp"
@@ -29,18 +29,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
-    <!--
-        Toggle Mode Button (top-right, bên dưới switchCameraBtn)
-        Icon và tint được set động từ MainActivity.updateToggleModeButton()
-        ic_mode_multi  → đang ở chế độ MULTI
-        ic_mode_single → đang ở chế độ SINGLE
-    -->
+    <!-- 2. Toggle detection mode -->
     <ImageButton
         android:id="@+id/toggleModeBtn"
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:layout_marginEnd="16dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="6dp"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:contentDescription="Chuyển chế độ phát hiện"
         android:src="@drawable/ic_mode_multi"
@@ -48,7 +43,21 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toBottomOf="@id/switchCameraBtn"/>
 
-    <!-- Settings Button (bottom-right) -->
+    <!-- 3. Toggle background service -->
+    <ImageButton
+        android:id="@+id/toggleServiceBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="6dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Bật/tắt chạy nền"
+        android:src="@android:drawable/ic_media_play"
+        android:tint="#44FF88"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toggleModeBtn"/>
+
+    <!-- Settings (bottom-right) -->
     <ImageButton
         android:id="@+id/settingsBtn"
         android:layout_width="48dp"
@@ -96,7 +105,7 @@
             android:fontFamily="monospace"/>
     </LinearLayout>
 
-    <!-- Permission denied -->
+    <!-- Permission denied overlay -->
     <TextView
         android:id="@+id/permissionDeniedText"
         android:layout_width="wrap_content"
