@@ -7,8 +7,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.Size;
 import android.view.View;
@@ -17,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
@@ -32,7 +38,6 @@ import com.facedetectormulti.detection.DetectionMode;
 import com.facedetectormulti.detection.FaceResult;
 import com.facedetectormulti.detection.MultiFaceDetector;
 import com.facedetectormulti.mqtt.MqttManager;
-import com.facedetectormulti.receiver.BootReceiver;
 import com.facedetectormulti.service.DetectionService;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -46,7 +51,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERM_CAMERA       = 100;
     private static final int PERM_NOTIFICATION = 101;
     private static final int REQUEST_SETTINGS  = 200;
-    private static final String PREF_DETECTION_MODE = "detection_mode";
+    private static final String PREF_DETECTION_MODE          = "detection_mode";
+    // [FIX] Flag: user chủ động dừng service (không auto-start lại)
+    private static final String PREF_SERVICE_STOPPED_BY_USER = "service_stopped_by_user";
 
     // ── UI ────────────────────────────────────────────────────────────
     private PreviewView previewView;
@@ -54,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton switchCameraBtn;
     private ImageButton settingsBtn;
     private ImageButton toggleModeBtn;
-    private ImageButton toggleServiceBtn;   // NÚT MỚI: start/stop background service
+    private ImageButton toggleServiceBtn;
     private TextView permissionDeniedText;
     private View mqttStatusDot;
     private TextView mqttStatusText;
@@ -67,15 +74,14 @@ public class MainActivity extends AppCompatActivity {
     private CameraSelector currentCamera = CameraSelector.DEFAULT_FRONT_CAMERA;
     private SharedPreferences prefs;
 
+    // [FIX] Giữ ref use case của Activity để unbind chính xác (không unbindAll)
+    private Preview activityPreview;
+    private ImageAnalysis activityAnalysis;
+
     // ── State ─────────────────────────────────────────────────────────
     private DetectionMode detectionMode = DetectionMode.MULTI;
     private boolean serviceRunning = false;
 
-    /**
-     * BroadcastReceiver nhận trạng thái từ DetectionService khi app ở foreground.
-     * Service thông báo: đang chạy hay không, số khuôn mặt phát hiện.
-     * Dùng để đồng bộ icon nút toggleServiceBtn khi service bị stop từ notification.
-     */
     private final BroadcastReceiver serviceStatusReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -99,7 +105,6 @@ public class MainActivity extends AppCompatActivity {
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this);
 
-        // Khôi phục detection mode
         String saved = prefs.getString(PREF_DETECTION_MODE, DetectionMode.MULTI.name());
         try { detectionMode = DetectionMode.valueOf(saved); }
         catch (Exception e) { detectionMode = DetectionMode.MULTI; }
@@ -112,11 +117,14 @@ public class MainActivity extends AppCompatActivity {
         initDetector();
         initMqtt();
 
-        // Xin quyền camera
-        if (hasCameraPermission()) startCamera();
-        else requestCameraPermission();
+        if (hasCameraPermission()) {
+            startCamera();
+            // [FIX] Xin battery optimization ngay khi đã có camera permission
+            requestBatteryOptimizationIfNeeded();
+        } else {
+            requestCameraPermission();
+        }
 
-        // Android 13+: xin quyền POST_NOTIFICATIONS
         requestNotificationPermissionIfNeeded();
     }
 
@@ -124,7 +132,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        // Đăng ký nhận broadcast từ service
         IntentFilter filter = new IntentFilter(DetectionService.BROADCAST_STATUS);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(serviceStatusReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
@@ -132,7 +139,16 @@ public class MainActivity extends AppCompatActivity {
             registerReceiver(serviceStatusReceiver, filter);
         }
 
-        if (hasCameraPermission() && cameraProvider != null) startCamera();
+        if (hasCameraPermission()) {
+            if (serviceRunning) {
+                // [FIX] Service đang giữ camera → bảo nó nhả ra, đợi 200ms rồi mới bind
+                DetectionService.releaseCamera(this);
+                new Handler(Looper.getMainLooper()).postDelayed(this::startCamera, 200);
+            } else {
+                startCamera();
+            }
+        }
+
         applyMqttSettings();
     }
 
@@ -141,9 +157,30 @@ public class MainActivity extends AppCompatActivity {
         super.onPause();
         try { unregisterReceiver(serviceStatusReceiver); } catch (Exception ignored) {}
 
-        // Khi app vào nền: nếu service đang chạy thì camera preview của activity
-        // không còn cần thiết → unbind để giải phóng. Service tự dùng camera riêng.
-        if (cameraProvider != null) cameraProvider.unbindAll();
+        // [FIX] CHỈ unbind use case của activity, KHÔNG unbindAll().
+        // unbindAll() sẽ xóa cả camera binding của DetectionService!
+        if (cameraProvider != null && activityPreview != null && activityAnalysis != null) {
+            try {
+                cameraProvider.unbind(activityPreview, activityAnalysis);
+                Log.d(TAG, "Activity camera use cases unbound");
+            } catch (Exception e) {
+                Log.w(TAG, "unbind error", e);
+            }
+        }
+        activityPreview  = null;
+        activityAnalysis = null;
+
+        // [FIX] Auto-start service khi app vào nền (trừ khi user đã tắt tay)
+        boolean stoppedByUser = prefs.getBoolean(PREF_SERVICE_STOPPED_BY_USER, false);
+        if (serviceRunning) {
+            // Service đang chạy → bảo nó lấy lại camera
+            DetectionService.acquireCamera(this);
+        } else if (!stoppedByUser && hasCameraPermission()) {
+            // Service chưa chạy và user không chủ động tắt → auto-start
+            Log.i(TAG, "App going to background → auto-starting DetectionService");
+            DetectionService.start(this);
+            serviceRunning = true;
+        }
     }
 
     @Override
@@ -173,7 +210,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupClickListeners() {
-        // Chuyển camera trước/sau
         switchCameraBtn.setOnClickListener(v -> {
             currentCamera = (currentCamera == CameraSelector.DEFAULT_FRONT_CAMERA)
                     ? CameraSelector.DEFAULT_BACK_CAMERA
@@ -191,20 +227,16 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-        // Settings
         settingsBtn.setOnClickListener(v ->
                 startActivityForResult(new Intent(this, SettingsActivity.class), REQUEST_SETTINGS));
 
-        // Toggle detection mode SINGLE ↔ MULTI
         toggleModeBtn.setOnClickListener(v -> {
             DetectionMode next = (detectionMode == DetectionMode.MULTI)
                     ? DetectionMode.SINGLE : DetectionMode.MULTI;
             applyDetectionMode(next, true);
-            // Nếu service đang chạy: báo service đổi mode luôn
             if (serviceRunning) DetectionService.setMode(this, next);
         });
 
-        // Toggle background service ON/OFF
         toggleServiceBtn.setOnClickListener(v -> {
             if (serviceRunning) {
                 stopDetectionService();
@@ -227,6 +259,8 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Cần cấp quyền Camera trước", Toast.LENGTH_SHORT).show();
             return;
         }
+        // [FIX] Xóa flag "stopped by user" khi user chủ động bật lại
+        prefs.edit().putBoolean(PREF_SERVICE_STOPPED_BY_USER, false).apply();
         DetectionService.start(this);
         serviceRunning = true;
         updateServiceButton(true);
@@ -235,6 +269,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void stopDetectionService() {
+        // [FIX] Đánh dấu user chủ động dừng → không auto-start lại khi onPause
+        prefs.edit().putBoolean(PREF_SERVICE_STOPPED_BY_USER, true).apply();
         DetectionService.stop(this);
         serviceRunning = false;
         updateServiceButton(false);
@@ -242,20 +278,15 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "DetectionService stopped");
     }
 
-    /**
-     * Cập nhật icon & màu nút service.
-     * ON  → icon "stop" màu đỏ cam (đang chạy, nhấn để dừng)
-     * OFF → icon "play" màu xanh (đang dừng, nhấn để bật)
-     */
     private void updateServiceButton(boolean running) {
         if (toggleServiceBtn == null) return;
         if (running) {
             toggleServiceBtn.setImageResource(android.R.drawable.ic_media_pause);
-            toggleServiceBtn.setColorFilter(0xFFFF4444); // đỏ cam
+            toggleServiceBtn.setColorFilter(0xFFFF4444);
             toggleServiceBtn.setContentDescription("Service đang chạy – nhấn để dừng");
         } else {
             toggleServiceBtn.setImageResource(android.R.drawable.ic_media_play);
-            toggleServiceBtn.setColorFilter(0xFF44FF88); // xanh lá
+            toggleServiceBtn.setColorFilter(0xFF44FF88);
             toggleServiceBtn.setContentDescription("Service đang dừng – nhấn để bật nền");
         }
     }
@@ -302,7 +333,6 @@ public class MainActivity extends AppCompatActivity {
                         faceOverlay.update(results, processingMs);
                         if (mqttManager != null && !serviceRunning) {
                             // Chỉ publish từ activity khi service KHÔNG chạy
-                            // (tránh publish trùng lặp)
                             mqttManager.publishDetection(results, processingMs, detectionMode);
                         }
                     }),
@@ -373,7 +403,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void bindCameraUseCases() {
         if (cameraProvider == null) return;
-        cameraProvider.unbindAll();
+
+        // [FIX] Chỉ unbind use case CŨ của activity, không unbindAll
+        if (activityPreview != null && activityAnalysis != null) {
+            try { cameraProvider.unbind(activityPreview, activityAnalysis); }
+            catch (Exception ignored) {}
+        }
 
         String res = prefs.getString(SettingsActivity.KEY_RESOLUTION, "1280");
         Size targetSize;
@@ -383,22 +418,23 @@ public class MainActivity extends AppCompatActivity {
             default:     targetSize = new Size(1280, 720);  break;
         }
 
-        Preview preview = new Preview.Builder()
+        // [FIX] Lưu ref vào field của Activity
+        activityPreview = new Preview.Builder()
                 .setTargetRotation(previewView.getDisplay().getRotation()).build();
-        preview.setSurfaceProvider(previewView.getSurfaceProvider());
+        activityPreview.setSurfaceProvider(previewView.getSurfaceProvider());
 
-        ImageAnalysis analysis = new ImageAnalysis.Builder()
+        activityAnalysis = new ImageAnalysis.Builder()
                 .setTargetResolution(targetSize)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setTargetRotation(previewView.getDisplay().getRotation())
                 .build();
-        analysis.setAnalyzer(cameraExecutor, imageProxy -> {
+        activityAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
             if (detector != null && detector.isReady()) detector.process(imageProxy);
             else imageProxy.close();
         });
 
         try {
-            cameraProvider.bindToLifecycle(this, currentCamera, preview, analysis);
+            cameraProvider.bindToLifecycle(this, currentCamera, activityPreview, activityAnalysis);
         } catch (Exception e) {
             Log.e(TAG, "Bind camera failed", e);
         }
@@ -429,6 +465,38 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * [FIX] Xin miễn trừ Battery Optimization.
+     * Nếu không có, Android Doze/Battery Saver có thể kill service sau vài phút.
+     * Chỉ hỏi 1 lần, lưu flag để không hỏi lại.
+     */
+    private void requestBatteryOptimizationIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm == null) return;
+        if (pm.isIgnoringBatteryOptimizations(getPackageName())) return;
+
+        boolean asked = prefs.getBoolean("battery_opt_asked", false);
+        if (asked) return;
+        prefs.edit().putBoolean("battery_opt_asked", true).apply();
+
+        new AlertDialog.Builder(this)
+                .setTitle("Cho phép chạy nền liên tục")
+                .setMessage(
+                        "Để Face Detector hoạt động ổn định khi tắt màn hình, " +
+                        "hãy tắt Battery Optimization cho app này.\n\n" +
+                        "Chọn \"Không hạn chế\" ở màn hình tiếp theo.")
+                .setPositiveButton("Cài đặt ngay", (d, w) -> {
+                    Intent intent = new Intent(
+                            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .setNegativeButton("Bỏ qua", null)
+                .show();
+    }
+
     @Override
     public void onRequestPermissionsResult(int code, @NonNull String[] perms,
                                            @NonNull int[] results) {
@@ -437,12 +505,12 @@ public class MainActivity extends AppCompatActivity {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
                 if (permissionDeniedText != null) permissionDeniedText.setVisibility(View.GONE);
                 startCamera();
+                requestBatteryOptimizationIfNeeded();
             } else {
                 if (permissionDeniedText != null) permissionDeniedText.setVisibility(View.VISIBLE);
                 Toast.makeText(this, R.string.permission_denied, Toast.LENGTH_LONG).show();
             }
         }
-        // PERM_NOTIFICATION: không cần xử lý thêm, service vẫn chạy được
     }
 
     // =====================================================================
@@ -461,7 +529,7 @@ public class MainActivity extends AppCompatActivity {
                 detector.applyConfig(cfg);
             }
             applyMqttSettings();
-            if (cameraProvider != null) startCamera();
+            startCamera();
         }
     }
 }
