@@ -1,5 +1,6 @@
 package com.facedetectormulti.service;
 
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -8,7 +9,9 @@ import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 import android.util.Size;
 
@@ -39,10 +42,14 @@ public class DetectionService extends Service implements LifecycleOwner {
 
     private static final String TAG = "DetectionService";
 
-    public static final String ACTION_START    = "com.facedetectormulti.START";
-    public static final String ACTION_STOP     = "com.facedetectormulti.STOP";
-    public static final String ACTION_SET_MODE = "com.facedetectormulti.SET_MODE";
-    public static final String EXTRA_MODE      = "mode";
+    public static final String ACTION_START          = "com.facedetectormulti.START";
+    public static final String ACTION_STOP           = "com.facedetectormulti.STOP";
+    public static final String ACTION_SET_MODE       = "com.facedetectormulti.SET_MODE";
+    public static final String EXTRA_MODE            = "mode";
+
+    // [FIX] Camera handoff actions
+    public static final String ACTION_ACQUIRE_CAMERA = "com.facedetectormulti.ACQUIRE_CAMERA";
+    public static final String ACTION_RELEASE_CAMERA = "com.facedetectormulti.RELEASE_CAMERA";
 
     public static final String BROADCAST_STATUS = "com.facedetectormulti.SERVICE_STATUS";
     public static final String EXTRA_FACE_COUNT = "face_count";
@@ -56,6 +63,7 @@ public class DetectionService extends Service implements LifecycleOwner {
     private MultiFaceDetector detector;
     private MqttManager mqttManager;
     private ProcessCameraProvider cameraProvider;
+    private ImageAnalysis serviceAnalysis; // [FIX] giữ ref để unbind chính xác
     private ExecutorService cameraExecutor;
     private SharedPreferences prefs;
 
@@ -93,6 +101,18 @@ public class DetectionService extends Service implements LifecycleOwner {
                 applyMode(m);
                 return START_STICKY;
 
+            // [FIX] Activity vào nền → service tái chiếm camera
+            case ACTION_ACQUIRE_CAMERA:
+                Log.i(TAG, "ACTION_ACQUIRE_CAMERA");
+                if (running) bindCamera();
+                return START_STICKY;
+
+            // [FIX] Activity ra foreground → service nhường camera
+            case ACTION_RELEASE_CAMERA:
+                Log.i(TAG, "ACTION_RELEASE_CAMERA");
+                releaseCamera();
+                return START_STICKY;
+
             case ACTION_START:
             default:
                 if (!running) startDetection();
@@ -106,7 +126,7 @@ public class DetectionService extends Service implements LifecycleOwner {
         running = false;
         lifecycle.setCurrentState(Lifecycle.State.DESTROYED);
 
-        if (cameraProvider != null) cameraProvider.unbindAll();
+        releaseCamera();
         if (detector != null) detector.close();
         if (mqttManager != null) mqttManager.close();
         if (cameraExecutor != null && !cameraExecutor.isShutdown())
@@ -116,11 +136,59 @@ public class DetectionService extends Service implements LifecycleOwner {
         super.onDestroy();
     }
 
+    /**
+     * [FIX] Khi user swipe app khỏi Recent Tasks:
+     * - stopWithTask="false" trong manifest đã ngăn service bị kill ngay.
+     * - Nhưng trên một số ROM (Xiaomi, OPPO...) service vẫn có thể bị kill.
+     * - Dùng AlarmManager để schedule restart sau 3 giây.
+     */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        Log.i(TAG, "onTaskRemoved – scheduling restart");
+        Intent restart = new Intent(getApplicationContext(), DetectionService.class);
+        restart.setAction(ACTION_START);
+
+        PendingIntent pi = PendingIntent.getService(
+                this, 99, restart,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+
+        AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+        if (am != null) {
+            long triggerAt = SystemClock.elapsedRealtime() + 3000;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+            } else {
+                am.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);
+            }
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Nullable @Override
     public IBinder onBind(Intent intent) { return null; }
 
     @Override
     public LifecycleRegistry getLifecycle() { return lifecycle; }
+
+    // ======================================================================
+    // Camera management
+    // ======================================================================
+
+    /**
+     * [FIX] Chỉ unbind use case của service, KHÔNG unbindAll().
+     * Tránh vô tình xóa binding của Activity.
+     */
+    private void releaseCamera() {
+        if (cameraProvider != null && serviceAnalysis != null) {
+            try {
+                cameraProvider.unbind(serviceAnalysis);
+                Log.i(TAG, "Camera released");
+            } catch (Exception e) {
+                Log.w(TAG, "releaseCamera error", e);
+            }
+        }
+        serviceAnalysis = null;
+    }
 
     // ======================================================================
     // Khởi động detection
@@ -178,27 +246,30 @@ public class DetectionService extends Service implements LifecycleOwner {
     }
 
     private void bindCamera() {
-        if (cameraProvider == null) return;
-        cameraProvider.unbindAll();
+        if (cameraProvider == null || !running) return;
 
-        ImageAnalysis analysis = new ImageAnalysis.Builder()
+        // [FIX] Chỉ unbind use case cũ của mình, không unbindAll
+        releaseCamera();
+
+        serviceAnalysis = new ImageAnalysis.Builder()
                 .setTargetResolution(new Size(640, 480))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
 
-        analysis.setAnalyzer(cameraExecutor, imageProxy -> {
+        serviceAnalysis.setAnalyzer(cameraExecutor, imageProxy -> {
             if (detector != null && detector.isReady()) detector.process(imageProxy);
             else imageProxy.close();
         });
 
         try {
             cameraProvider.bindToLifecycle(this,
-                    CameraSelector.DEFAULT_FRONT_CAMERA, analysis);
-            Log.i(TAG, "Camera bound (background)");
-            updateNotification("Đang theo dõi...", 0);
+                    CameraSelector.DEFAULT_FRONT_CAMERA, serviceAnalysis);
+            Log.i(TAG, "Camera bound (background service)");
+            updateNotification("Đang theo dõi...", lastFaceCount < 0 ? 0 : lastFaceCount);
         } catch (Exception e) {
             Log.e(TAG, "bindCamera failed", e);
             updateNotification("Lỗi bind camera", 0);
+            serviceAnalysis = null;
         }
     }
 
@@ -338,5 +409,16 @@ public class DetectionService extends Service implements LifecycleOwner {
         ctx.startService(new Intent(ctx, DetectionService.class)
                 .setAction(ACTION_SET_MODE)
                 .putExtra(EXTRA_MODE, mode.mqttValue()));
+    }
+
+    // [FIX] Helpers cho camera handoff
+    public static void acquireCamera(Context ctx) {
+        ctx.startService(new Intent(ctx, DetectionService.class)
+                .setAction(ACTION_ACQUIRE_CAMERA));
+    }
+
+    public static void releaseCamera(Context ctx) {
+        ctx.startService(new Intent(ctx, DetectionService.class)
+                .setAction(ACTION_RELEASE_CAMERA));
     }
 }
