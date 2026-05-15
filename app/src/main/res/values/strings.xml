@@ -8,4 +8,9 @@
     <string name="toast_need_restart">⚠ Cần restart camera để áp dụng</string>
     <string name="toast_reset_done">✓ Đã reset về mặc định</string>
     <string name="error_camera_init">Lỗi khởi tạo camera: %s</string>
+    <!-- Detection mode -->
+    <string name="mode_single">1 Người</string>
+    <string name="mode_multi">Nhiều Người</string>
+    <string name="toggle_mode_desc_multi">Đang: Nhiều người – nhấn để chuyển sang 1 người</string>
+    <string name="toggle_mode_desc_single">Đang: 1 người – nhấn để chuyển sang nhiều người</string>
 </resources>

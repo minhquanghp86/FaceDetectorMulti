@@ -29,6 +29,25 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
+    <!--
+        Toggle Mode Button (top-right, bên dưới switchCameraBtn)
+        Icon và tint được set động từ MainActivity.updateToggleModeButton()
+        ic_mode_multi  → đang ở chế độ MULTI
+        ic_mode_single → đang ở chế độ SINGLE
+    -->
+    <ImageButton
+        android:id="@+id/toggleModeBtn"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Chuyển chế độ phát hiện"
+        android:src="@drawable/ic_mode_multi"
+        android:tint="#00C8FF"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/switchCameraBtn"/>
+
     <!-- Settings Button (bottom-right) -->
     <ImageButton
         android:id="@+id/settingsBtn"
@@ -43,7 +62,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- MQTT Status -->
+    <!-- MQTT Status (bottom-left) -->
     <LinearLayout
         android:id="@+id/mqttStatusBar"
         android:layout_width="wrap_content"
