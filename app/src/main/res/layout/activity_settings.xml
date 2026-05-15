@@ -138,7 +138,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="0 = xử lý tất cả frame | 50ms = \~20fps | 100ms = \~10fps"
+            android:text="0 = xử lý tất cả frame | 50ms = ~20fps | 100ms = ~10fps"
             android:textColor="#888888"
             android:textSize="12sp"
             android:paddingBottom="4dp"/>
@@ -180,7 +180,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="250ms = \~4 lần/giây | 500ms = 2 lần/giây | 1000ms = 1 lần/giây"
+            android:text="250ms = ~4 lần/giây | 500ms = 2 lần/giây | 1000ms = 1 lần/giây"
             android:textColor="#888888"
             android:textSize="12sp"
             android:paddingBottom="4dp"/>
@@ -347,7 +347,6 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal">
-
             <RadioButton
                 android:id="@+id/rb_qos_0"
                 android:layout_width="wrap_content"
@@ -373,6 +372,98 @@
                 android:textColor="#CCCCCC"
                 android:buttonTint="#00AAFF"/>
         </RadioGroup>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!-- CHẠY NỀN & TỰ KHỞI ĐỘNG                                     -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <View android:layout_width="match_parent" android:layout_height="1dp"
+            android:background="#333333" android:layout_marginVertical="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔄  CHẠY NỀN &amp; TỰ KHỞI ĐỘNG"
+            android:textColor="#FF9900"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:paddingBottom="12dp"/>
+
+        <!-- Switch: Bật service chạy nền -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="8dp">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Chạy trong nền khi thoát app"
+                    android:textColor="#EEEEEE"
+                    android:textSize="14sp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Camera + MQTT tiếp tục hoạt động khi app bị thu nhỏ"
+                    android:textColor="#888888"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+            <Switch
+                android:id="@+id/switch_background_service"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:thumbTint="#FF9900"
+                android:trackTint="@color/switch_track"/>
+        </LinearLayout>
+
+        <!-- Switch: Tự khởi động khi bật máy -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingBottom="8dp">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tự khởi động khi bật máy"
+                    android:textColor="#EEEEEE"
+                    android:textSize="14sp"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Service tự bật sau khi thiết bị khởi động lại"
+                    android:textColor="#888888"
+                    android:textSize="11sp"/>
+            </LinearLayout>
+            <Switch
+                android:id="@+id/switch_auto_start"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:thumbTint="#FF9900"
+                android:trackTint="@color/switch_track"/>
+        </LinearLayout>
+
+        <!-- Cảnh báo MIUI/EMUI -->
+        <TextView
+            android:id="@+id/tv_autostart_note"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠ Xiaomi/MIUI và Huawei/EMUI cần bật thêm quyền 'Autostart' trong ứng dụng Bảo mật của hệ thống."
+            android:textColor="#FFAA00"
+            android:textSize="11sp"
+            android:paddingBottom="8dp"
+            android:visibility="gone"/>
 
         <!-- Reset -->
         <View android:layout_width="match_parent" android:layout_height="1dp"
