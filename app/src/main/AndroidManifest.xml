@@ -8,9 +8,7 @@
 
     <!-- ── Foreground Service (chạy nền) ────────────────────────── -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <!-- Android 14+ yêu cầu khai báo loại foreground service cụ thể -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
-    <!-- Giữ CPU không ngủ khi service đang chạy -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <!-- ── Tự khởi động sau khi boot ────────────────────────────── -->
@@ -18,6 +16,12 @@
 
     <!-- ── Notification (Android 13+) ──────────────────────────── -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- ── [FIX] Battery Optimization exemption ─────────────────── -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
+    <!-- ── [FIX] Cho phép AlarmManager restart service khi bị kill ─ -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
 
     <application
         android:allowBackup="true"
@@ -28,7 +32,6 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.FaceDetectorMulti">
 
-        <!-- ── Main Activity ──────────────────────────────────────── -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -40,7 +43,6 @@
             </intent-filter>
         </activity>
 
-        <!-- ── Settings Activity ──────────────────────────────────── -->
         <activity
             android:name=".ui.SettingsActivity"
             android:label="⚙ Cài đặt"
@@ -51,14 +53,17 @@
                 android:value=".ui.MainActivity"/>
         </activity>
 
-        <!-- foregroundServiceType="camera" bắt buộc từ Android 14 -->
+        <!--
+            stopWithTask="false": Service KHÔNG bị kill khi user swipe app khỏi recent.
+            onTaskRemoved() trong service sẽ tự quyết định restart.
+        -->
         <service
             android:name=".service.DetectionService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="camera"/>
+            android:foregroundServiceType="camera"
+            android:stopWithTask="false"/>
 
-        <!-- BOOT_COMPLETED: Android chuẩn | QUICKBOOT_POWERON: Huawei/HTC -->
         <receiver
             android:name=".receiver.BootReceiver"
             android:enabled="true"
