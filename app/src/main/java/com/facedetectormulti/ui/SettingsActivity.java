@@ -41,7 +41,7 @@ public class SettingsActivity extends AppCompatActivity {
     private static final String DEF_RESOLUTION = "1280";
     private static final int DEF_FRAME_INTERVAL = 50;
     private static final boolean DEF_MQTT_ENABLED = false;
-    private static final String DEF_MQTT_BROKER = "tcp://192.168.1.100:1883";
+    private static final String DEF_MQTT_BROKER = "tcp://192.168.10.2:1883";
     private static final String DEF_MQTT_USERNAME = "";
     private static final String DEF_MQTT_PASSWORD = "";
     private static final String DEF_MQTT_TOPIC = "face/detection";
