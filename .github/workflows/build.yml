@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: write
+      contents: write
 
     steps:
       - name: Checkout code
@@ -45,38 +46,57 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      # ✅ FIX: Dùng wildcard *.apk để tìm đúng file
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: face-detector-multi-debug
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-
-      # Optional: In danh sách file APK để debug
       - name: List generated APKs
         run: |
           echo "📦 Generated APKs:"
           find app/build/outputs/apk/ -name "*.apk" -type f -exec ls -lh {} \;
 
-      - name: Keep only last 3 artifacts
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+
+      - name: Delete old pre-release
         uses: actions/github-script@v7
         with:
           script: |
-            const artifacts = await github.paginate(
-              github.rest.actions.listArtifactsForRepo,
-              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
-            );
-            const filtered = artifacts
-              .filter(a => a.name === "face-detector-multi-debug")
-              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            const toDelete = filtered.slice(3);
-            for (const a of toDelete) {
-              await github.rest.actions.deleteArtifact({
+            try {
+              const releases = await github.rest.repos.listReleases({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                artifact_id: a.id
               });
-              console.log(`Deleted: ${a.name} (${a.id})`);
+              const old = releases.data.filter(r => r.tag_name === 'latest-debug');
+              for (const r of old) {
+                await github.rest.repos.deleteRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: r.id,
+                });
+                console.log(`Deleted release: ${r.id}`);
+              }
+              try {
+                await github.rest.git.deleteRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: 'tags/latest-debug',
+                });
+                console.log('Deleted tag: latest-debug');
+              } catch (e) {
+                console.log('Tag not found, skipping');
+              }
+            } catch (e) {
+              console.log('No old release found, skipping');
             }
-            console.log(`Kept: ${Math.min(filtered.length, 3)}, Deleted: ${toDelete.length}`);
+
+      - name: Upload APK lên GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: "Debug Build #${{ github.run_number }} (${{ steps.date.outputs.date }})"
+          body: |
+            🔧 Debug build tự động
+            - Branch: ${{ github.ref_name }}
+            - Commit: ${{ github.sha }}
+            - Build: #${{ github.run_number }}
+          files: app/build/outputs/apk/debug/*.apk
+          prerelease: true
+          make_latest: false
